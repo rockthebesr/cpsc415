@@ -49,6 +49,8 @@ int create(funcptr func, int stack) {
         return EPROCLIMIT;
     }
 
+    new_proc->cpu_time = 0;
+
     // Initialize msg queues
     new_proc->blocker = NULL;
     new_proc->blocker_queue = NO_BLOCKER;

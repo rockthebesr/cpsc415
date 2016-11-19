@@ -20,6 +20,7 @@ static void test_sleep1_simple(void);
 static void test_sleep2_killmid(void);
 static void test_sleep3_simultaneous_wake(void);
 static void test_rand_timesharing(void);
+static void test_sysgetcputime(void);
 
 /**
  * Helper functions for test cases
@@ -32,16 +33,17 @@ static void sleep5(void);
 static void sleep10(void);
 static void sleep20(void);
 static void rand_sleep_and_print(void);
+static void cputimehelper(void);
 
 /**
  * Runs all timer tests
  */
 void timer_run_all_tests(void) {
     initPIT(TICK_LENGTH_IN_MS * 10);
-    
     test_preemption();
     test_preemption2();
     test_rand_timesharing();
+    test_sysgetcputime();
     test_sleep1_simple();
     test_sleep2_killmid();
     test_sleep3_simultaneous_wake();
@@ -280,4 +282,45 @@ static void test_rand_timesharing(void) {
     }
     
     DEBUG("Done!\n");
+}
+
+/**
+ * Tests sysgetcputime()
+ */
+static void test_sysgetcputime(void) {
+    // proc does not exist
+    ASSERT_EQUAL(sysgetcputime(-8), -1);
+    ASSERT_EQUAL(sysgetcputime(8000), -1);
+
+    // idle proc
+    int time = sysgetcputime(0);
+    ASSERT(time >= 0);
+    kprintf("idleproc time: %d\n", time);
+
+    // currproc
+    time = sysgetcputime(-1);
+    ASSERT(time >= 0);
+    kprintf("currproc time: %d\n", time);
+
+    int pid = syscreate(&cputimehelper, DEFAULT_STACK_SIZE);
+    ASSERT(pid > 0);
+    
+    int old_time = sysgetcputime(pid);
+    sysyield();
+
+    time = sysgetcputime(pid);
+    ASSERT(time > old_time);
+    old_time = time;
+    sysyield();
+
+    time = sysgetcputime(pid);
+    ASSERT(time > old_time);
+}
+
+/**
+ * Helper for test_sysgetcputime
+ */
+static void cputimehelper(void) {
+    BUSYWAIT();
+    BUSYWAIT();
 }

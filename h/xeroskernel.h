@@ -94,6 +94,7 @@ typedef struct proc_ctrl_block {
     void *esp;
     unsigned long *args;
     int ret;
+    int cpu_time;
     struct proc_ctrl_block *blocker;
     blocking_queue_t blocker_queue;
     struct proc_ctrl_block *msg_queue_heads[2];
@@ -117,7 +118,8 @@ typedef enum {
     SYSCALL_PUTS,
     SYSCALL_SEND,
     SYSCALL_RECV,
-    SYSCALL_SLEEP
+    SYSCALL_SLEEP,
+    SYSCALL_CPUTIME,
 } syscall_request_id_t;
 
 void dispinit(void);
@@ -147,6 +149,7 @@ extern int sysrecvbuf(int *from_pid, void *buffer, unsigned long len);
 extern int syssend(int dest_pid, unsigned long num);
 extern int sysrecv(int *from_pid, unsigned long *num);
 extern unsigned int syssleep(unsigned int milliseconds);
+extern int sysgetcputime(int pid);
 
 typedef struct context_frame {
     unsigned long edi;

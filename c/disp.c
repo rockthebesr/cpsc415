@@ -14,12 +14,14 @@ Further details can be found in the documentation above the function headers.
 #include <copyinout.h>
 
 /* Syscall dispatches */
+static void timer_handler(void);
 static int dispatch_syscall_create(void);
 static int dispatch_syscall_kill(void);
 static void dispatch_syscall_puts(void);
 static void dispatch_syscall_send(void);
 static void dispatch_syscall_recv(void);
-static int dispatch_syscall_sleep(void);
+static void dispatch_syscall_sleep(void);
+static int dispatch_syscall_getcputime(void);
 
 static proc_ctrl_block_t *currproc;
 
@@ -48,10 +50,7 @@ void dispatch(funcptr root_proc) {
         switch(request) {
 
         case TIMER_INT:
-            tick();
-            add_pcb_to_queue(currproc, PROC_STATE_READY);
-            currproc = get_next_proc();
-            end_of_intr();
+            timer_handler();
             break;
 
         case SYSCALL_CREATE:
@@ -89,9 +88,11 @@ void dispatch(funcptr root_proc) {
             break;
 
         case SYSCALL_SLEEP:
-            if (dispatch_syscall_sleep() == OK) {
-                currproc = get_next_proc();
-            }
+            dispatch_syscall_sleep();
+            break;
+
+        case SYSCALL_CPUTIME:
+            currproc->ret = dispatch_syscall_getcputime();
             break;
 
         default:
@@ -226,13 +227,46 @@ static void dispatch_syscall_recv(void) {
 /**
  * Handler for the syssleep syscall
  */
-static int dispatch_syscall_sleep(void) {
+static void dispatch_syscall_sleep(void) {
     unsigned int milliseconds = currproc->args[0];
     if (milliseconds == 0) {
-        currproc->ret = 0;
-        return EINVAL;
+        return;
     }
 
     sleep(currproc, milliseconds);
-    return OK;
+    currproc = get_next_proc();
+}
+
+/**
+ * Handler for timer events
+ */
+static void timer_handler(void) {
+    currproc->cpu_time++;
+    tick();
+    add_pcb_to_queue(currproc, PROC_STATE_READY);
+    currproc = get_next_proc();
+    end_of_intr();
+}
+
+/**
+ * Handler for sysgetcputime syscall
+ * @return number of ticks consumed, or -1 if pid passed in does not exist
+ */
+static int dispatch_syscall_getcputime(void) {
+    int pid = currproc->args[0];
+    proc_ctrl_block_t* proc;
+
+    if (pid == -1) {
+        proc = currproc;
+    } else if (pid == 0) {
+        proc = get_idleproc();
+    } else {
+        proc = pid_to_proc(pid);
+    }
+
+    if (proc == NULL) {
+        return -1;
+    }
+
+    return proc->cpu_time;
 }

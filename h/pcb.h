@@ -33,6 +33,7 @@ int remove_proc_from_msgqueue(proc_ctrl_block_t *proc,
                               blocking_queue_t queue);
 
 proc_ctrl_block_t* pid_to_proc(int pid);
+proc_ctrl_block_t* get_idleproc(void);
 
 int terminate_proc_if_exists(int pid);
 void cleanup_proc(proc_ctrl_block_t *proc);

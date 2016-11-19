@@ -15,6 +15,7 @@ Accessible through pcb.h:
   terminate_proc_if_exists() - terminates the process with the particular pid
 
   pid_to_proc() - returns the proc with the pid, null otherwise
+  get_idleproc() - returns the idle proc
 
   print_pcb_queue() - prints all blocks in particular queue, testing only
 
@@ -354,6 +355,14 @@ static void remove_proc_from_queue(proc_ctrl_block_t *proc,
     // done for safety
     proc->prev_proc = NULL;
     proc->next_proc = NULL;
+}
+
+/**
+ * gets the idle proc's pcb
+ * @return pointer to the idle proc
+ */
+proc_ctrl_block_t* get_idleproc(void) {
+    return &g_idle_proc;
 }
 
 /**

@@ -6,6 +6,10 @@ xeros:
 	cd compile; $(MAKE) 
 	cd boot; $(MAKE)
 
+test:
+	cd compile; $(MAKE) test
+	cd boot; $(MAKE)
+
 beros: xeros
 	nice bochs
 
