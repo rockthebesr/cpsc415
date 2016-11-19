@@ -49,16 +49,6 @@ int create(funcptr func, int stack) {
         return EPROCLIMIT;
     }
 
-    new_proc->cpu_time = 0;
-
-    // Initialize msg queues
-    new_proc->blocker = NULL;
-    new_proc->blocker_queue = NO_BLOCKER;
-    for (int i = 0; i < 2; i++) {
-        new_proc->msg_queue_heads[i] = NULL;
-        new_proc->msg_queue_tails[i] = NULL;
-    }
-
     new_proc->memory_region = stack_bottom;
     
     // place address of sysstop() as the fake return address

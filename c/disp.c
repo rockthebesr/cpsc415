@@ -22,6 +22,9 @@ static void dispatch_syscall_send(void);
 static void dispatch_syscall_recv(void);
 static void dispatch_syscall_sleep(void);
 static int dispatch_syscall_getcputime(void);
+static int dispatch_syscall_sighandler(void);
+static void dispatch_syscall_sigreturn(void);
+
 
 static proc_ctrl_block_t *currproc;
 
@@ -93,6 +96,14 @@ void dispatch(funcptr root_proc) {
 
         case SYSCALL_CPUTIME:
             currproc->ret = dispatch_syscall_getcputime();
+            break;
+
+        case SYSCALL_SIGHANDLER:
+            currproc->ret = dispatch_syscall_sighandler();
+            break;
+
+        case SYSCALL_SIGRETURN:
+            dispatch_syscall_sigreturn();
             break;
 
         default:
@@ -269,4 +280,44 @@ static int dispatch_syscall_getcputime(void) {
     }
 
     return proc->cpu_time;
+}
+
+/**
+ * Handler for syssighandler
+ * @return returns 0 on success, or error code - see syssighandler for details
+ */
+static int dispatch_syscall_sighandler(void) {
+    int signal = currproc->args[0];
+    funcptr_args1 new_handler = (funcptr_args1)currproc->args[1];
+    funcptr_args1 *old_handler = (funcptr_args1*)currproc->args[2];
+
+    if (signal < 0 || signal >= SIGNAL_TABLE_SIZE) {
+        return -1;
+    }
+
+    if (verify_usrptr(new_handler, sizeof(funcptr_args1)) != OK ||
+        verify_usrptr(old_handler, sizeof(funcptr_args1*)) != OK) {
+        return -2;
+    }
+
+    *old_handler = currproc->signal_table[signal];
+    currproc->signal_table[signal] = new_handler;
+    return 0;
+}
+
+/**
+ * Handler for syssigreturn
+ */
+static void dispatch_syscall_sigreturn(void) {
+    void *old_sp = (void*)currproc->args[0];
+
+    // despite this being a syscall, we set old_sp, so it should never be faulty
+    ASSERT_EQUAL(verify_usrptr(old_sp, sizeof(void*)), OK);
+
+    currproc->esp = old_sp;
+
+    // TODO retrieve saved return value
+    // Doc mentions that we should indicate here signals can be sent again, but:
+    // plan is to use bitmap to check what signal to load in get_next_proc(),
+    // then load highest priority, and clear the signal's bit there
 }

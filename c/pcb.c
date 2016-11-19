@@ -3,7 +3,7 @@
 Accessible through pcb.h:
   pcb_table_init() - initializes process queues, process control block table
 
-  get_next_available_pcb() - returns an unused pcb, or NULL if none are free
+  get_next_available_pcb() - returns and setups up unused pcb
 
   add_pcb_to_queue() - adds pcb to a queue, changes it to the appropriate state
   remove_pcb_from_queue() - remove pcb from its queue, does not change state
@@ -56,6 +56,9 @@ static void fail_msg_blocked_procs(proc_ctrl_block_t *proc,
  * Initializes process queues, process control block table
  */
 void pcb_table_init(void) {
+    // assumed throughout
+    ASSERT(sizeof(int) * 8 == SIGNAL_TABLE_SIZE);
+
     // queues for ready and stopped processes
     for (int i = 0; i < NUM_G_PROC_QUEUES; i++) {
         g_proc_queue_heads[i] = NULL;
@@ -92,7 +95,7 @@ proc_ctrl_block_t* get_next_proc(void) {
 }
 
 /**
- * gets a free pcb in the pcb_table, and assigns it a pid.
+ * Gets a free pcb in the pcb_table, assigns it a pid, and peforms basic setup.
  * @return the free pcb, or NULL if none are free.
  */
 proc_ctrl_block_t* get_next_available_pcb(void) {
@@ -105,6 +108,23 @@ proc_ctrl_block_t* get_next_available_pcb(void) {
     }
 
     remove_pcb_from_queue(proc);
+
+    proc->signal_table = kmalloc(SIGNAL_TABLE_SIZE * sizeof(funcptr_args1));
+    if (proc->signal_table == NULL) {
+        add_pcb_to_queue(proc, PROC_STATE_STOPPED);
+        return NULL;
+    }
+
+    proc->signals_fired = 0;
+    proc->cpu_time = 0;
+
+    // Initialize msg queues
+    proc->blocker = NULL;
+    proc->blocker_queue = NO_BLOCKER;
+    for (int i = 0; i < 2; i++) {
+        proc->msg_queue_heads[i] = NULL;
+        proc->msg_queue_tails[i] = NULL;
+    }
 
     // To allow us to access a proc by its pid in constant time,
     // we set our pids a multiple of PCB_TABLE_SIZE
@@ -171,6 +191,8 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
     // Because the stack grows down, we set esp to the end of this block.
     // Therefore, in cleanup, we do not free esp, only memory_region
     kfree(proc->memory_region);
+
+    kfree(proc->signal_table);
 
     // all blocked procs on the msg queues must be notified
     fail_msg_blocked_procs(proc, SENDER);

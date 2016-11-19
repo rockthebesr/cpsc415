@@ -12,6 +12,8 @@ Called from user processes:
     sysrecvbuf() - generalized sysrecv, for receiving > 4 bytes
     syssleep() - allows process to sleep for a number of milliseconds
     sysgetcputime() - gets number of quantums the process has consumed
+    syssighandler() - registers the handler as a signal handler
+    syssigreturn() - restores a process's context after a signal is handled
 
 Helper functions:
     syscallX - prepare stack for syscall with X parameters
@@ -159,6 +161,31 @@ unsigned int syssleep(unsigned int milliseconds) {
 int sysgetcputime(int pid) {
     return syscall1(SYSCALL_CPUTIME, pid);
 }
+
+/**
+ * Registers the provided function as the handler for the signal.
+ * Returns the old handler for the signal through the provided pointer.
+ * @param signal - the signal to register the handler for
+ * @param newhandler - the new handler for the signal
+ * @param oldHandler
+ * @return 0 on success, -1 if signal is invalid, -2 if the funcptrs are invalid
+ */
+int syssighandler(int signal, funcptr_args1 newhandler,
+                  funcptr_args1 *oldHandler) {
+    return syscall3(SYSCALL_SIGHANDLER, signal, (unsigned long)newhandler,
+                    (unsigned long)oldHandler);
+}
+
+/**
+ * Restore's a process after it has finished handling a signal.
+ * Used only by signal trampoline code. Does not return.
+ * @param old_sp - the stack pointer when the signal occured
+ */
+void syssigreturn(void *old_sp) {
+    syscall1(SYSCALL_SIGRETURN, (unsigned long)old_sp);
+    ASSERT(0);
+}
+
 
 /*****************************************************************************
  * general syscallX functions which prepares the stack for a syscall

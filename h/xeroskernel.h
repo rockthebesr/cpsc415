@@ -61,6 +61,9 @@ void           set_evec(unsigned int xnum, unsigned long handler);
 #define ASSERT(x) if (!(x)) { DEBUG("Assertion failed!"); while(1); }
 #define ASSERT_EQUAL(x, y) if (x != y) { DEBUG("Assertion failed. %d != %d", x, y); while(1); }
 
+typedef void (*funcptr)(void);
+typedef void (*funcptr_args1)(void*);
+
 /* Memory Manager */
 void  kmeminit(void);
 long  kmem_maxaddr(void);
@@ -94,6 +97,8 @@ typedef struct proc_ctrl_block {
     void *esp;
     unsigned long *args;
     int ret;
+    funcptr_args1 *signal_table;
+    int signals_fired;
     int cpu_time;
     struct proc_ctrl_block *blocker;
     blocking_queue_t blocker_queue;
@@ -105,8 +110,6 @@ typedef struct proc_ctrl_block {
 /* disp */
 #define TIMER_INTERRUPT_VALUE 32
 #define SYSCALL_INTERRUPT_VALUE 50
-
-typedef void (*funcptr)(void);
 
 typedef enum {
     TIMER_INT,
@@ -120,6 +123,8 @@ typedef enum {
     SYSCALL_RECV,
     SYSCALL_SLEEP,
     SYSCALL_CPUTIME,
+    SYSCALL_SIGHANDLER,
+    SYSCALL_SIGRETURN,
 } syscall_request_id_t;
 
 void dispinit(void);
@@ -150,6 +155,9 @@ extern int syssend(int dest_pid, unsigned long num);
 extern int sysrecv(int *from_pid, unsigned long *num);
 extern unsigned int syssleep(unsigned int milliseconds);
 extern int sysgetcputime(int pid);
+extern int syssighandler(int signal, funcptr_args1 newhandler,
+                         funcptr_args1 *oldHandler);
+extern void syssigreturn(void *old_sp);
 
 typedef struct context_frame {
     unsigned long edi;

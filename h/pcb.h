@@ -8,6 +8,8 @@
 // maximum number of processes
 #define PCB_TABLE_SIZE 32
 
+#define SIGNAL_TABLE_SIZE 32
+
 // Kernel PCB structures defined in pcb.c
 extern proc_ctrl_block_t g_pcb_table[PCB_TABLE_SIZE];
 extern proc_ctrl_block_t *g_proc_queue_heads[2];
