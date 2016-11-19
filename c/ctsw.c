@@ -1,109 +1,84 @@
 /* ctsw.c : context switcher
- */
+
+Called from outside:
+    ctsw_init_evec() - initializes irq handlers to enter the context switcher
+    
+    ctsw_contextswitch() - context switch from kernel to user process
+
+Further details can be found in the documentation above the function headers.
+*/
 
 #include <xeroskernel.h>
-#include <i386.h>
 
+void _timer_entry_point(void);
+void _syscall_entry_point(void);
+void _common_entry_point(void);
+static void *kern_stack_ptr;
+static unsigned long *ESP;
+static unsigned long REQ_ID;
+static int is_syscall;
 
-void _KernelEntryPoint(void);
-void _TimerEntryPoint(void);
-
-static void               *saveESP;
-static unsigned int        rc;
-static int                 trapNo;
-static long                args;
-
-int contextswitch( pcb *p ) {
-/**********************************/
-
-    /* keep every thing on the stack to simplfiy gcc's gesticulations
-     */
-
-    saveESP = p->esp;
-    rc = p->ret; 
- 
-    /* In the assembly code, switching to process
-     * 1.  Push eflags and general registers on the stack
-     * 2.  Load process's return value into eax
-     * 3.  load processes ESP into edx, and save kernel's ESP in saveESP
-     * 4.  Set up the process stack pointer
-     * 5.  store the return value on the stack where the processes general
-     *     registers, including eax has been stored.  We place the return
-     *     value right in eax so when the stack is popped, eax will contain
-     *     the return value
-     * 6.  pop general registers from the stack
-     * 7.  Do an iret to switch to process
-     *
-     * Switching to kernel
-     * 1.  Push regs on stack, set ecx to 1 if timer interrupt, jump to common
-     *     point.
-     * 2.  Store request code in ebx
-     * 3.  exchange the process esp and kernel esp using saveESP and eax
-     *     saveESP will contain the process's esp
-     * 4a. Store the request code on stack where kernel's eax is stored
-     * 4b. Store the timer interrupt flag on stack where kernel's eax is stored
-     * 4c. Store the the arguments on stack where kernel's edx is stored
-     * 5.  Pop kernel's general registers and eflags
-     * 6.  store the request code, trap flag and args into variables
-     * 7.  return to system servicing code
-     */
- 
-    __asm __volatile( " \
-        pushf \n\
-        pusha \n\
-        movl    rc, %%eax    \n\
-        movl    saveESP, %%edx    \n\
-        movl    %%esp, saveESP    \n\
-        movl    %%edx, %%esp \n\
-        movl    %%eax, 28(%%esp) \n\
-        popa \n\
-        iret \n\
-   _TimerEntryPoint: \n\
-        cli   \n\
-        pusha \n\
-        movl    $1, %%ecx \n\
-        jmp     _CommonJumpPoint \n \
-   _KernelEntryPoint: \n\
-        cli \n\
-        pusha  \n\
-        movl   $0, %%ecx \n\
-   _CommonJumpPoint: \n \
-        movl    %%eax, %%ebx \n\
-        movl    saveESP, %%eax  \n\
-        movl    %%esp, saveESP  \n\
-        movl    %%eax, %%esp  \n\
-        movl    %%ebx, 28(%%esp) \n\
-        movl    %%ecx, 24(%%esp)\n		\
-        movl    %%edx, 20(%%esp) \n\
-        popa \n\
-        popf \n\
-        movl    %%eax, rc \n\
-        movl    %%ecx, trapNo \n\
-        movl    %%edx, args \n\
-        "
-        : 
-        : 
-        : "%eax", "%ebx", "%edx"
-    );
-
-    /* save esp and read in the arguments
-     */
-    p->esp = saveESP;
-    if( trapNo ) {
-	/* return value (eax) must be restored, (treat it as return value) */
-	p->ret = rc;
-	rc = SYS_TIMER;
-    } else {
-        p->args = args;
-    }
-    return rc;
+/**
+ * Sets the syscall and timer interrupt handlers
+ */
+void ctsw_init_evec(void) {
+    set_evec(TIMER_INTERRUPT_VALUE, (unsigned long)_timer_entry_point);
+    set_evec(SYSCALL_INTERRUPT_VALUE, (unsigned long)_syscall_entry_point);
 }
 
-void contextinit( void ) {
-/*******************************/
-  kprintf("Context init called\n");
-  set_evec( KERNEL_INT, (int) _KernelEntryPoint );
-  set_evec( TIMER_INT,  (int) _TimerEntryPoint );
-  initPIT( 100 );
+/**
+ * Main context switching function.
+ * Switches from kernel into the user process specified by proc
+ * @param proc: process to switch to
+ */
+syscall_request_id_t ctsw_contextswitch(proc_ctrl_block_t *proc) {
+    // for getting rid of unused param compiler warning
+    (void)kern_stack_ptr;
+    context_frame_t *cf;
 
+    ESP = proc->esp;
+
+    cf = (context_frame_t *)proc->esp;
+    cf->eax = proc->ret;
+    
+    __asm__ volatile( " \
+        pushf \n\
+        pusha \n\
+        movl %%esp, kern_stack_ptr \n\
+        movl ESP, %%esp \n\
+        popa \n\
+        iret \n\
+_timer_entry_point: \n\
+        cli \n\
+        pusha \n\
+        movl $0, is_syscall \n\
+        jmp _common_entry_point \n\
+_syscall_entry_point: \n\
+        cli \n\
+        pusha \n\
+        movl $1, is_syscall \n\
+_common_entry_point: \n\
+        movl %%esp, ESP \n\
+        movl kern_stack_ptr, %%esp \n\
+        popa \n\
+        popf \n"
+    : /* no outputs */
+    : /* no range */
+    : "%eax"
+    );
+    
+    proc->esp = ESP;
+
+    cf = (context_frame_t *)proc->esp;
+    proc->ret = cf->eax;
+
+    if (is_syscall) {
+        REQ_ID = cf->syscallargs[0];
+        proc->args = &(cf->syscallargs[1]);
+    } else {
+        REQ_ID = TIMER_INT;
+        proc->args = (unsigned long *)0xDEADBEEF;
+    }
+
+    return REQ_ID;
 }

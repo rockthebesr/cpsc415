@@ -1,106 +1,131 @@
-/* sleep.c : sleep device 
-   This file does not need to modified until assignment 2
- */
+/* sleep.c : sleep device
+
+Called from outside:
+    sleep() - Puts a process to sleep for a specific amount of time
+    wake() - Ends the sleep of a process, and places in on the ready queue
+
+    tick() - Monitors time, so we know when sleeping procs are done.
+
+Note:
+  To monitor time efficiently in our sleeping queue, we utilize a delta list.
+  For convenience, time left is stored in proc->ret. This allows us to expand
+  our functionality, while fitting nicely into the current pcb workflow.
+  Additionally, when a process is removed from the list, we have a count of how
+  many time slices were remaining in its sleep.
+
+Further details can be found in the documentation above the function headers.
+*/
 
 #include <xeroskernel.h>
 #include <xeroslib.h>
+#include <pcb.h>
 
+// sleeping procs, maintained as a delta-list
+proc_ctrl_block_t *g_sleeping_list = NULL;
 
-#define MILLISECONDS_TICK 10
-static pcb	*sleepQ;
+static void add_to_sleeping_list(proc_ctrl_block_t *proc);
+static void remove_from_sleeping_list(proc_ctrl_block_t *proc);
 
+/**
+ * Puts a process to sleep for a specific amount of time.
+ * A process is considered blocked while it is sleeping.
+ * @param proc - the process to sleep
+ * @param time - the time, in milliseconds, for the process to sleep
+ */
+void sleep(proc_ctrl_block_t *proc, unsigned int time) {
+    ASSERT(time > 0);
+    proc->curr_state = PROC_STATE_BLOCKED;
+    proc->blocker_queue = SLEEP;
+    proc->blocker = NULL;
 
-// Len is the length of time to sleep
+    proc->ret = time / TICK_LENGTH_IN_MS + (time % TICK_LENGTH_IN_MS ? 1 : 0);
+    add_to_sleeping_list(proc);
+}
 
+/**
+ * Ends the sleep of a process, and places in on the ready queue
+ * Assumes the process is in the sleeping queue
+ * @param proc - the process to wake
+ */
+void wake(proc_ctrl_block_t *proc) {
+    ASSERT(proc != NULL);
+    ASSERT_EQUAL(proc->blocker_queue, SLEEP);
 
-/* This function works by mainting a delta list. This is where
-   each element in the list has as its key a value that is its difference
-   from the previous value. For example if we had the values 3, 7, 8, and 15 
-   to put in a list a list with their actual values would look like:
-       3->7->8->15   As a delta list this would be stored as:
-       3->4->1->7    To get the value of a node we sum all the preceding 
-                     values along with the value in that node. If these 
-   values represent how long into the future to sleep then all we have to do
-   is decrement the value of the head of the list on each tick. When that value
-   gets to 0 the time has expired and we remove it from the list. The value 
-   value of the element now at the head of the list represents how much 
-   additional time has to elapse before that time expires.
+    remove_from_sleeping_list(proc);
+    proc->blocker_queue = NO_BLOCKER;
 
-   see: http://everything2.com/title/delta+list for additional information
-*/
+    proc->ret *= TICK_LENGTH_IN_MS;
+    add_pcb_to_queue(proc, PROC_STATE_READY);
+}
 
-
-void	sleep( pcb *p, unsigned int len ) {
-/****************************************/
-
-    pcb	*tmp;
-
-
-    if( len < 1 ) {
-        ready( p );
+/**
+ * Called at the end of a time slice.
+ * Decreases the time each sleeping proc is waiting, removes those that finish
+ */
+void tick(void) {
+    if (g_sleeping_list == NULL) {
         return;
     }
 
-    // Convert the length of time to sleep in ticks
-    // each tick is 10ms 
-    len = len / MILLISECONDS_TICK;
-
-    p->state = STATE_SLEEP;
-    p->next = NULL;
-    p->prev = NULL;
-    if( !sleepQ ) { /* Empty sleep list */
-        sleepQ = p;
-        p->sleepdiff = len;
-    } else if( sleepQ->sleepdiff > len ) { /* Add to front */
-        p->next = sleepQ;
-        sleepQ->sleepdiff -= len;
-        p->sleepdiff = len;
-        sleepQ = p;
-    } else {  /* Goes after the head of the queue */
-        len -= sleepQ->sleepdiff;
-
-	/* Look for the spot in the sleep queue where this belongs */
-        for( tmp = sleepQ; tmp->next; tmp = tmp->next ) {
-            if( len < tmp->next->sleepdiff ) {
-	      break; /* goes in front of next element */
-            } else {
-	      /* goes after next element, so update the time difference */
-              /* and check the next element                             */
-	      len -= tmp->next->sleepdiff;
-            }
-        }
-
-	
-        p->next = tmp->next;
-        p->prev = tmp;
-        p->sleepdiff = len;
-        tmp->next = p;
-        
-	if( p->next ) { /* Not at that end of the list so insert it */
-            p->next->prev = p;
-            p->next->sleepdiff -= len;
-        }
+    // subtract 1 time slice, and remove all expired procs
+    g_sleeping_list->ret--;
+    while (g_sleeping_list != NULL && g_sleeping_list->ret <= 0) {
+        wake(g_sleeping_list);
     }
 }
 
-
-extern void	tick( void ) {
-/****************************/
-
-    pcb	*tmp;
-
-    if( !sleepQ ) {
-        return;
+/**
+ * Adds the proc to the global sleeping list priority queue
+ * @param proc - the process to add
+ */
+static void add_to_sleeping_list(proc_ctrl_block_t *proc) {
+    ASSERT(proc != NULL);
+    proc_ctrl_block_t *prev = NULL;
+    proc_ctrl_block_t *entry = g_sleeping_list;
+    
+    while (entry != NULL && proc->ret > entry->ret) {
+        proc->ret -= entry->ret;
+        prev = entry;
+        entry = entry->next_proc;
     }
 
-    for( sleepQ->sleepdiff--; sleepQ && !sleepQ->sleepdiff; ) {
-        tmp = sleepQ;
-        sleepQ = tmp->next;
-
-        tmp->state = STATE_READY;
-        tmp->next = NULL;
-        tmp->prev = NULL;
-        tmp->ret = 0;
-        ready( tmp );
+    if (prev == NULL) {
+        g_sleeping_list = proc;
+    } else {
+        prev->next_proc = proc;
     }
+    
+    proc->next_proc = entry;
+    proc->prev_proc = prev;
+    
+    if (proc->next_proc != NULL) {
+        proc->next_proc->prev_proc = proc;
+        proc->next_proc->ret -= proc->ret;
+    }
+}
+
+/**
+ * Removes the process from the global sleep list.
+ * Assumes that proc is in the list
+ * @param proc - the process to remove
+ */
+static void remove_from_sleeping_list(proc_ctrl_block_t *proc) {
+    ASSERT(proc != NULL && proc->curr_state == PROC_STATE_BLOCKED);
+
+    if (proc->prev_proc) {
+        proc->prev_proc->next_proc = proc->next_proc;
+    }
+
+    if (proc->next_proc) {
+        proc->next_proc->ret += proc->ret;
+        proc->next_proc->prev_proc = proc->prev_proc;
+    }
+
+    if (g_sleeping_list == proc) {
+        g_sleeping_list = proc->next_proc;
+    }
+
+    // done for safety
+    proc->prev_proc = NULL;
+    proc->next_proc = NULL;
 }

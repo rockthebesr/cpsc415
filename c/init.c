@@ -4,27 +4,14 @@
 #include <xeroskernel.h>
 #include <xeroslib.h>
 
+#ifdef TESTING
+#include <xerostest.h>
+#endif
+
 extern	int	entry( void );  /* start of kernel image, use &start    */
 extern	int	end( void );    /* end of kernel image, use &end        */
 extern  long	freemem; 	/* start of free memory (set in i386.c) */
 extern char	*maxaddr;	/* max memory address (set in i386.c)	*/
-
-
-
-/*------------------------------------------------------------------------
- *  The idle process 
- *------------------------------------------------------------------------
- */
-static void idleproc( void )	
-{
-    int	i;
-    //    kprintf("I");
-    for( i = 0; ; i++ ) {
-       sysyield();
-    }
-}
-
-
 
 /************************************************************************/
 /***				NOTE:				      ***/
@@ -44,40 +31,47 @@ void initproc( void )				/* The beginning */
 {
   kprintf( "\n\nCPSC 415, 2016W1 \n32 Bit Xeros 0.01 \nLocated at: %x to %x\n", 
 	   &entry, &end); 
-  
-  /* Your code goes here */
-  
-  kprintf("Max addr is %d %x\n", maxaddr, maxaddr);
-  
-  kmeminit();
-  kprintf("memory inited\n");
-  
-  dispatchinit();
-  kprintf("dispatcher inited\n");
-  
-  contextinit();
-  kprintf("context inited\n");
-  
-  
-  // Note that this idle process gets a regular time slice but
-  // according to the A2 specs it should only get a time slice when
-  // there are no other processes available to run. This approach 
-  // works, but will give the idle process a time slice when other 
-  // processes are available for execution and thereby needless waste
-  // CPU resources that could be used by user processes.
 
-  kprintf("Creating Idle Process\n");
-  create(idleproc, PROC_STACK);
+  // kernel will crash if this fails
+  ASSERT_EQUAL(DEFAULT_STACK_SIZE % 16, 0);
+
+  /* Initialize kernel */
+
+  kmeminit();
+  kprintf("kmem initialized\n");
+
+  ctsw_init_evec();
+  kprintf("context switcher initialized\n");
+
+  dispinit();
+  kprintf("dispatcher initialized\n");
   
-  create( root, PROC_STACK );
-  kprintf("create inited\n");
-  
-  dispatch();
-  
-  
-  kprintf("Returned to init, you should never get here!\n");
-  
-  /* This code should never be reached after you are done */
+
+/************************************************************************/
+/* This section must be manually commented/uncommented to select        */
+/* the desired test to run                                              */
+/************************************************************************/
+#ifdef TESTING
+  // We can't test our memory management or queues in another process,
+  // due to their critical nature
+  //mem_run_all_tests();
+  //disp_run_all_tests();
+
+  // Other tests should be dispatched
+  //dispatch(&syscall_run_all_tests);
+  //dispatch(&copyinout_run_all_tests);
+  //dispatch(&msg_run_all_tests);
+  //dispatch(&timer_run_all_tests);
+#else
+  // enable pre-emption
+  initPIT(TICK_LENGTH_IN_MS * 10);
+
+  // Launch the root process
+  dispatch(&parent);
+#endif
+
+
+  kprintf("\n\nIf you see this, something went horribly wrong!\n");
+  kprintf("Pretend this message never appeared and casually powercycle the VM...\n");
   for(;;) ; /* loop forever */
 }
-

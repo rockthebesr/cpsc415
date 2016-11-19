@@ -1,133 +1,238 @@
 /* disp.c : dispatcher
+
+Called from outside:
+    dispinit() - initializes dispatcher
+    
+    dispatch() - starts the root process
+    
+Further details can be found in the documentation above the function headers.
  */
 
 #include <xeroskernel.h>
+#include <pcb.h>
 #include <i386.h>
-#include <xeroslib.h>
-#include <stdarg.h>
+#include <copyinout.h>
 
+/* Syscall dispatches */
+static int dispatch_syscall_create(void);
+static int dispatch_syscall_kill(void);
+static void dispatch_syscall_puts(void);
+static void dispatch_syscall_send(void);
+static void dispatch_syscall_recv(void);
+static int dispatch_syscall_sleep(void);
 
-static pcb      *head = NULL;
-static pcb      *tail = NULL;
+static proc_ctrl_block_t *currproc;
 
-void     dispatch( void ) {
-/********************************/
+/**
+ * Initializes the dispatcher
+ */
+void dispinit(void) {
+    pcb_table_init();
+}
 
-    pcb         *p;
-    int         r;
-    funcptr     fp;
-    int         stack;
-    va_list     ap;
-    char        *str;
-    int         len;
+/**
+ * Passes kernel control to the dispatcher. This function does not return.
+ * The root process is the root_proc provided.
+ *
+ * The dispatcher's behaviour is undefined if the root process terminates.
+ *
+ * @param root_proc: root process
+ */
+void dispatch(funcptr root_proc) {
+    create(root_proc, DEFAULT_STACK_SIZE);
+    currproc = get_next_proc();
 
-    for( p = next(); p; ) {
-      //      kprintf("Process %x selected stck %x\n", p, p->esp);
+    while(1) {
+        syscall_request_id_t request = ctsw_contextswitch(currproc);
 
-      r = contextswitch( p );
-      switch( r ) {
-      case( SYS_CREATE ):
-        ap = (va_list)p->args;
-        fp = (funcptr)(va_arg( ap, int ) );
-        stack = va_arg( ap, int );
-	p->ret = create( fp, stack );
-        break;
-      case( SYS_YIELD ):
-        ready( p );
-        p = next();
-        break;
-      case( SYS_STOP ):
-        p->state = STATE_STOPPED;
-        p = next();
-        break;
-      case( SYS_PUTS ):
-	  ap = (va_list)p->args;
-	  str = va_arg( ap, char * );
-	  kprintf( "%s", str );
-	  p->ret = 0;
-	  break;
-      case( SYS_GETPID ):
-	p->ret = p->pid;
-	break;
-      case( SYS_SLEEP ):
-	ap = (va_list)p->args;
-	len = va_arg( ap, int );
-	sleep( p, len );
-	p = next();
-	break;
-      case( SYS_TIMER ):
-	tick();
-	ready( p );
-	p = next();
-	end_of_intr();
-	break;
-      default:
-        kprintf( "Bad Sys request %d, pid = %d\n", r, p->pid );
-      }
+        switch(request) {
+
+        case TIMER_INT:
+            tick();
+            add_pcb_to_queue(currproc, PROC_STATE_READY);
+            currproc = get_next_proc();
+            end_of_intr();
+            break;
+
+        case SYSCALL_CREATE:
+            currproc->ret = dispatch_syscall_create();
+            break;
+
+        case SYSCALL_YIELD:
+            add_pcb_to_queue(currproc, PROC_STATE_READY);
+            currproc = get_next_proc();
+            break;
+
+        case SYSCALL_STOP:
+            cleanup_proc(currproc);
+            currproc = get_next_proc();
+            break;
+
+        case SYSCALL_GETPID:
+            currproc->ret = currproc->pid;
+            break;
+
+        case SYSCALL_KILL:
+            currproc->ret = dispatch_syscall_kill();
+            break;
+
+        case SYSCALL_PUTS:
+            dispatch_syscall_puts();
+            break;
+
+        case SYSCALL_SEND:
+            dispatch_syscall_send();
+            break;
+
+        case SYSCALL_RECV:
+            dispatch_syscall_recv();
+            break;
+
+        case SYSCALL_SLEEP:
+            if (dispatch_syscall_sleep() == OK) {
+                currproc = get_next_proc();
+            }
+            break;
+
+        default:
+            DEBUG("Unknown syscall request: %d\n", request);
+            ASSERT(0);
+        }
     }
+}
 
-    kprintf( "Out of processes: dying\n" );
+/**
+ * Handler for the syscreate syscall
+ * @return On success, pid of process created. Error code on failure.
+ */
+static int dispatch_syscall_create(void) {
+    funcptr func;
+    int stack;
+    int result;
     
-    for( ;; );
+    result = verify_usrptr((void*)currproc->args[0], sizeof(funcptr));
+    if (result != OK) {
+        return result;
+    }
+    
+    func = (funcptr)currproc->args[0];
+    stack = currproc->args[1];
+    return create(func, stack);
 }
 
-extern void dispatchinit( void ) {
-/********************************/
+/**
+ * Handler for the syskill syscall
+ * @return returns 0 on success, or error code - see syskill for details
+ */
+static int dispatch_syscall_kill() {
+    int pid = currproc->args[0];
 
-  //bzero( proctab, sizeof( pcb ) * MAX_PROC );
-  memset(proctab, 0, sizeof( pcb ) * MAX_PROC);
+    // pids start at 1, cannot be negative
+    if (pid < 1) {
+        return SYSPID_DNE;
+    }
+
+    // process cannot kill itself - should use sysstop() instead
+    if (currproc->pid == pid) {
+        return SYSPID_ME;
+    }
+
+    return terminate_proc_if_exists(pid);
 }
 
+/**
+ * Handler for the sysputs syscall
+ */
+static void dispatch_syscall_puts(void) {
+    char *str = (char*)currproc->args[0];
 
+    // check user's string starts in a valid location
+    int result = verify_usrstr((void*)str);
+    if (result == OK) {
+        kprintf(str);
+    }
+}
 
-extern void     ready( pcb *p ) {
-/*******************************/
+/**
+ * Handler for the syssend syscall
+ */
+static void dispatch_syscall_send(void) {
+    int dest_pid = (int)currproc->args[0];
+    void *buffer = (void*)currproc->args[1];
+    unsigned long len = (unsigned long)currproc->args[2];
 
-    p->next = NULL;
-    p->state = STATE_READY;
+    if (dest_pid == currproc->pid) {
+        currproc->ret = SYSPID_ME;
+        return;
+    }
+    
+    if (len <= 0 || verify_usrptr(buffer, len) != OK) {
+        currproc->ret = SYSERR_OTHER;
+        return;
+    }
 
-    if( tail ) {
-        tail->next = p;
+    proc_ctrl_block_t *destproc = pid_to_proc(dest_pid);
+    if (destproc == NULL) {
+        currproc->ret = SYSPID_DNE;
+        return;
+    }
+    
+    currproc->ret = send(currproc, destproc, buffer, len);
+    if (currproc->ret == SYSMSG_BLOCKED) {
+        currproc->curr_state = PROC_STATE_BLOCKED;
+        currproc = get_next_proc();
+    }
+    
+    return;
+}
+
+/**
+ * Handler for the sysrecv syscall
+ */
+static void dispatch_syscall_recv(void) {
+    int *from_pid = (int*)currproc->args[0];
+    void *buffer = (void*)currproc->args[1];
+    unsigned long len = (int)currproc->args[2];
+
+    if (verify_usrptr(from_pid, sizeof(int)) != OK ||
+        len <= 0 || verify_usrptr(buffer, len) != OK) {
+        currproc->ret = SYSERR_OTHER;
+        return;
+    }
+
+    if (*from_pid == currproc->pid) {
+        currproc->ret = SYSPID_ME;
+        return;
+    }
+
+    proc_ctrl_block_t *srcproc = pid_to_proc(*from_pid);
+    if (*from_pid != 0 && srcproc == NULL) {
+        currproc->ret = SYSPID_DNE;
+        return;
+    }
+
+    if (*from_pid == 0) {
+        currproc->ret = recv_any(currproc, buffer, len);
     } else {
-        head = p;
+        currproc->ret = recv(srcproc, currproc, buffer, len);
     }
 
-    tail = p;
+    if (currproc->ret == SYSMSG_BLOCKED) {
+        currproc->curr_state = PROC_STATE_BLOCKED;
+        currproc = get_next_proc();
+    }
 }
 
-extern pcb      *next( void ) {
-/*****************************/
-
-    pcb *p;
-
-    p = head;
-
-    if( p ) {
-        head = p->next;
-        if( !head ) {
-            tail = NULL;
-        }
-    } else {
-        kprintf( "BAD\n" );
-        for(;;);
+/**
+ * Handler for the syssleep syscall
+ */
+static int dispatch_syscall_sleep(void) {
+    unsigned int milliseconds = currproc->args[0];
+    if (milliseconds == 0) {
+        currproc->ret = 0;
+        return EINVAL;
     }
 
-    p->next = NULL;
-    p->prev = NULL;
-    return( p );
-}
-
-
-extern pcb *findPCB( int pid ) {
-/******************************/
-
-    int	i;
-
-    for( i = 0; i < MAX_PROC; i++ ) {
-        if( proctab[i].pid == pid ) {
-            return( &proctab[i] );
-        }
-    }
-
-    return( NULL );
+    sleep(currproc, milliseconds);
+    return OK;
 }

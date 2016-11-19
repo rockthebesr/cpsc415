@@ -4,72 +4,131 @@
 #include <xeroskernel.h>
 #include <xeroslib.h>
 
-void producer( void ) {
-/****************************/
+static int g_root_proc_pid;
 
-    int         i;
-    char        buff[100];
-    syssleep(3000);
-    for( i = 0; i < 20; i++ ) {
-      
-      sprintf(buff, "Producer %x and in hex %x %d\n", i+1, i, i+1);
-      sysputs(buff);
-      syssleep(1500);
+/**
+ * Root process
+ */
+void root(void) {
+    kprintf("Hello world!\n");
+    syscreate(&producer, DEFAULT_STACK_SIZE);
+    syscreate(&consumer, DEFAULT_STACK_SIZE);
+    for (;;) sysyield();
+}
 
+/**
+ * Producer
+ */
+void producer(void) {
+    int i;
+    for (i = 0; i < 12; i++) {
+        kprintf("Happy 101st\n");
+        sysyield();
     }
+    sysstop();    
+}
+
+/**
+ * Consumer
+ */
+void consumer(void) {
+    int i;
     for (i = 0; i < 15; i++) {
-      sysputs("P");
-      syssleep(1500);
+        kprintf("Birthday UBC\n");
+        sysyield();
     }
-    sprintf(buff, "Producer finished\n");
-    sysputs( buff );
-    sysstop();
+    sysstop();  
 }
 
-void consumer( void ) {
-/****************************/
-
-    int         i;
-    char        buff[100];
-    syssleep(3000);
-    for( i = 0; i < 10; i++ ) {
-      sprintf(buff, "Consumer %d\n", i);
-      sysputs( buff );
-      syssleep(1500);
-      sysyield();
+/**
+ * Child
+ * As required by the asst2 spec:
+ * * print a message indicating it is alive
+ * * sleep for 5 seconds
+ * * recv() from root process, this is the # of ms to sleep
+ * * print a message saying the message was received, specify the sleep time
+ * * print message saying sleeping has stopped and is going to exit
+ * * runs off the end of its code
+ */
+void child(void) {
+    char buf[80];
+    int result;
+    unsigned long sleep_time;
+    int root = g_root_proc_pid;
+    int pid = sysgetpid();
+    
+    sprintf(buf, "[%d]: Hello! I am alive!\n", pid);
+    sysputs(buf);
+    syssleep(5000);
+    
+    result = sysrecv(&root, &sleep_time);
+    if (result != SYSPID_OK) {
+        sprintf(buf, "[%d]: Error %d: Could not receive sleep_time from root\n",
+            pid, result);
+        sysputs(buf);
+        goto done;
     }
-
-    for (i = 0; i < 40; i++) {
-      sysputs("C");
-      syssleep(700);
-    }
-
-    sprintf(buff, "Consumer finished\n");
-    sysputs( buff );
-    sysstop();
+    sprintf(buf, "[%d]: Received sleep_time from root: %lu\n",
+        pid, sleep_time);
+    sysputs(buf);
+    syssleep(sleep_time);
+    
+done:
+    sprintf(buf, "[%d]: Terminating, goodbye\n", pid);
+    sysputs(buf);
 }
 
-void     root( void ) {
-/****************************/
-
-    char  buff[100];
-    int proc_pid, con_pid;
-    sysputs("Root has been called\n");
-    syssleep(3000);
-    sysyield();
-    sysyield();
-   
-    proc_pid = syscreate( &producer, 4096 );
-    con_pid = syscreate( &consumer, 4096 );
-    sprintf(buff, "Proc pid = %d Con pid = %d\n", proc_pid, con_pid);
-    sysputs( buff );
-
-    sprintf(buff, "Root finished\n");
-    sysputs( buff );
-    sysstop();
-
-    for( ;; ) {
-     sysyield();
+/**
+ * Parent (AKA root)
+ * As required by the asst2 spec:
+ * * prints a message saying it is alive
+ * * create 4 children, printing their pids
+ * * sleeps for 4 seconds
+ * * tell proc3 to sleep for 10 seconds
+ * * tell proc2 to sleep for 7 seconds
+ * * tell proc1 to sleep for 20 seconds
+ * * tell proc4 to sleep for 27 seconds
+ * * try to recv from proc4, print resulting error code
+ * * try to send to proc3, print resulting error code
+ * * call sysstop() explicitly
+ */
+void parent(void) {
+    char buf[80];
+    int result;
+    int children[4];
+    int i;
+    unsigned long msg;
+    
+    g_root_proc_pid = sysgetpid();
+    
+    sprintf(buf, "[root]: Hello! I am root! (pid: %d)\n", g_root_proc_pid);
+    sysputs(buf);
+    for (i = 0; i < 4; i++) {
+        children[i] = syscreate(&child, DEFAULT_STACK_SIZE);
+        if (children[i] <= 0) {
+            sprintf(buf, "[root]: Error creating child %d\n", i);
+            sysputs(buf);
+        }
+        sprintf(buf, "[root]: Created child with PID %d\n", children[i]);
+        sysputs(buf);
     }
+    syssleep(4000);
+    
+    syssend(children[2], 10000);
+    syssend(children[1], 7000);
+    syssend(children[0], 20000);
+    syssend(children[3], 27000);
+    
+    result = sysrecv(&children[3], &msg);
+    sprintf(buf, "[root]: recv from %d resulted in return code: %d\n",
+        children[3], result);
+    sysputs(buf);
+    
+    result = syssend(children[2], (unsigned long)0xcafecafe);
+    sprintf(buf, "[root]: send to %d resulted in return code: %d\n",
+        children[2], result);
+    sysputs(buf);
+    
+    sysputs("Done.\n");
+    sysstop();
 }
-

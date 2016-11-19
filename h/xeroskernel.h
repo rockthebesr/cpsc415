@@ -16,9 +16,6 @@ typedef unsigned int size_t; /* Something that can hold the value of
 #define	NULL    0       /* Null pointer for linked lists */
 #define	NULLCH '\0'     /* The null character            */
 
-#define CREATE_FAILURE -1  /* Process creation failed     */
-
-
 
 /* Universal return constants */
 
@@ -29,6 +26,13 @@ typedef unsigned int size_t; /* Something that can hold the value of
 #define	INTRMSG      -4         /* keyboard "intr" key pressed	*/
                                 /*  (usu. defined as ^B)        */
 #define	BLOCKERR     -5         /* non-blocking op would block  */
+#define	EINVAL       -6         /* invalid parameter */
+#define	ENOMEM       -7         /* out of memory */
+#define EPROCLIMIT   -8         /* process limit reached */
+
+
+#define DEFAULT_STACK_SIZE 8192
+#define TICK_LENGTH_IN_MS 10
 
 /* Functions defined by startup code */
 
@@ -42,121 +46,152 @@ void           init8259(void);
 int            kprintf(char * fmt, ...);
 void           lidt(void);
 void           outb(unsigned int, unsigned char);
-
-
-/* Some constants involved with process creation and managment */
- 
-   /* Maximum number of processes */      
-#define MAX_PROC        64           
-   /* Kernel trap number          */
-#define KERNEL_INT      80
-   /* Interrupt number for the timer */
-#define TIMER_INT      (TIMER_IRQ + 32)
-   /* Minimum size of a stack when a process is created */
-#define PROC_STACK      (4096 * 4)    
-                      
-
-/* Constants to track states that a process is in */
-#define STATE_STOPPED   0
-#define STATE_READY     1
-#define STATE_SLEEP     22
-
-/* System call identifiers */
-#define SYS_STOP        10
-#define SYS_YIELD       11
-#define SYS_CREATE      22
-#define SYS_TIMER       33
-#define SYS_GETPID      144
-#define SYS_PUTS        155
-#define SYS_SLEEP       166
-
-/* Structure to track the information associated with a single process */
-
-typedef struct struct_pcb pcb;
-struct struct_pcb {
-  void        *esp;    /* Pointer to top of saved stack           */
-  pcb         *next;   /* Next process in the list, if applicable */
-  pcb         *prev;   /* Previous proccess in list, if applicable*/
-  int          state;  /* State the process is in, see above      */
-  unsigned int pid;    /* The process's ID                        */
-  int          ret;    /* Return value of system call             */
-                       /* if process interrupted because of system*/
-                       /* call                                    */
-  long         args;   
-  unsigned int otherpid;
-  void        *buffer;
-  int          bufferlen;
-  int          sleepdiff;
-};
-
-
-/* The actual space is set aside in create.c */
-extern pcb     proctab[MAX_PROC];
-
-#pragma pack(1)
-
-/* What the set of pushed registers looks like on the stack */
-typedef struct context_frame {
-  unsigned long        edi;
-  unsigned long        esi;
-  unsigned long        ebp;
-  unsigned long        esp;
-  unsigned long        ebx;
-  unsigned long        edx;
-  unsigned long        ecx;
-  unsigned long        eax;
-  unsigned long        iret_eip;
-  unsigned long        iret_cs;
-  unsigned long        eflags;
-  unsigned long        stackSlots[];
-} context_frame;
-
-
-/* Memory mangement system functions, it is OK for user level   */
-/* processes to call these.                                     */
-
-void     kfree(void *ptr);
-void     kmeminit( void );
-void     *kmalloc( size_t );
-
-
-/* A typedef for the signature of the function passed to syscreate */
-typedef void    (*funcptr)(void);
-
-
-/* Internal functions for the kernel, applications must never  */
-/* call these.                                                 */
-void     dispatch( void );
-void     dispatchinit( void );
-void     ready( pcb *p );
-pcb      *next( void );
-void     contextinit( void );
-int      contextswitch( pcb *p );
-int      create( funcptr fp, size_t stack );
-void     set_evec(unsigned int xnum, unsigned long handler);
-void     printCF (void * stack);  /* print the call frame */
-int      syscall(int call, ...);  /* Used in the system call stub */
-void     sleep(pcb *, unsigned int);
-void     tick( void );
-
-
-/* Function prototypes for system calls as called by the application */
-int          syscreate( funcptr fp, size_t stack );
-void         sysyield( void );
-void         sysstop( void );
-unsigned int sysgetpid( void );
-unsigned int syssleep(unsigned int);
-void     sysputs(char *str);
-
-/* The initial process that the system creates and schedules */
-void     root( void );
-
-
-
-
 void           set_evec(unsigned int xnum, unsigned long handler);
 
+/* Helpful macros - why aren't these in lib? */
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
-/* Anything you add must be between the #define and this comment */
+/* Helpful debug macros */
+#ifdef TESTING
+#define DEBUG(...) kprintf("[%s:%d %s] ", __FILE__, __LINE__, __FUNCTION__); kprintf(__VA_ARGS__)
+#else
+#define DEBUG(...)
 #endif
+#define ASSERT(x) if (!(x)) { DEBUG("Assertion failed!"); while(1); }
+#define ASSERT_EQUAL(x, y) if (x != y) { DEBUG("Assertion failed. %d != %d", x, y); while(1); }
 
+/* Memory Manager */
+void  kmeminit(void);
+long  kmem_maxaddr(void);
+long  kmem_freemem(void);
+void* kmalloc(size_t size);
+void  kfree(void *ptr);
+void  kmem_dump_free_list(void);
+int kmem_get_free_list_length(void);
+
+/* Process Manager */
+typedef enum {
+    PROC_STATE_READY = 0,
+    PROC_STATE_STOPPED = 1,
+    PROC_STATE_BLOCKED,
+    PROC_STATE_RUNNING
+} proc_state_enum_t;
+
+typedef enum {
+    SENDER = 0,
+    RECEIVER = 1,
+    SLEEP,
+    NO_BLOCKER
+} blocking_queue_t;
+
+typedef struct proc_ctrl_block {
+    int pid;
+    proc_state_enum_t curr_state;
+    struct proc_ctrl_block *next_proc;
+    struct proc_ctrl_block *prev_proc;
+    void *memory_region;
+    void *esp;
+    unsigned long *args;
+    int ret;
+    struct proc_ctrl_block *blocker;
+    blocking_queue_t blocker_queue;
+    struct proc_ctrl_block *msg_queue_heads[2];
+    struct proc_ctrl_block *msg_queue_tails[2];
+} proc_ctrl_block_t;
+
+
+/* disp */
+#define TIMER_INTERRUPT_VALUE 32
+#define SYSCALL_INTERRUPT_VALUE 50
+
+typedef void (*funcptr)(void);
+
+typedef enum {
+    TIMER_INT,
+    SYSCALL_CREATE,
+    SYSCALL_YIELD,
+    SYSCALL_STOP,
+    SYSCALL_GETPID,
+    SYSCALL_KILL,
+    SYSCALL_PUTS,
+    SYSCALL_SEND,
+    SYSCALL_RECV,
+    SYSCALL_SLEEP
+} syscall_request_id_t;
+
+void dispinit(void);
+void dispatch(funcptr root_proc);
+
+/* syscall return constants */
+#define SYSPID_OK       0
+#define SYSPID_DNE     -1
+#define SYSPID_ME      -2
+#define SYSERR_OTHER   -3
+#define SYSMSG_BLOCKED -4
+
+/* ctsw */
+void ctsw_init_evec(void);
+syscall_request_id_t ctsw_contextswitch(proc_ctrl_block_t *proc);
+
+
+/* syscall */
+extern unsigned int syscreate(funcptr func, int stack);
+extern void sysyield(void);
+extern void sysstop(void);
+extern int sysgetpid(void);
+extern int syskill(int pid);
+extern void sysputs(char *str);
+extern int syssendbuf(int dest_pid, void *buffer, unsigned long len);
+extern int sysrecvbuf(int *from_pid, void *buffer, unsigned long len);
+extern int syssend(int dest_pid, unsigned long num);
+extern int sysrecv(int *from_pid, unsigned long *num);
+extern unsigned int syssleep(unsigned int milliseconds);
+
+typedef struct context_frame {
+    unsigned long edi;
+    unsigned long esi;
+    unsigned long ebp;
+    unsigned long esp;
+    unsigned long ebx;
+    unsigned long edx;
+    unsigned long ecx;
+    unsigned long eax;
+    unsigned long iret_eip;
+    unsigned long iret_cs;
+    unsigned long eflags;
+
+    // context_frame appears on the stack following a syscall.
+    // This location is where the arguments to the call lie
+    // Adding syscallargs to this struct allows us to avoid ugly pointer math
+    // syscallargs takes no space.
+    unsigned long syscallargs[];
+} context_frame_t;    
+
+/* kernel services */
+extern void init_idle_proc(proc_ctrl_block_t *idle_proc);
+
+extern int create(funcptr func, int stack);
+
+extern int send(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
+                void *buffer, unsigned long len);
+
+extern int recv(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
+                void *buffer, unsigned long len);
+
+extern int recv_any(proc_ctrl_block_t *destproc,
+                    void *buffer, unsigned long len);
+
+extern void sleep(proc_ctrl_block_t *proc, unsigned int time);
+extern void wake(proc_ctrl_block_t *proc);
+extern void tick(void);
+
+
+/* user programs */
+extern void root(void);
+extern void producer(void);
+extern void consumer(void);
+extern void child(void);
+extern void parent(void);
+
+#endif

@@ -1,66 +1,236 @@
 /* syscall.c : syscalls
+
+Called from user processes:
+    syscreate() - create a new process
+    sysyield() - pause execution and allow another process to run
+    sysstop() - stops process
+    sysgetpid() - returns current process's pid
+    syskill() - kills identified process
+    syssend() - sends data to a particular process
+    sysrecv() - receives data delivered by syssend()
+    syssendbuf() - generalized sysend, for sending > 4 bytes
+    sysrecvbuf() - generalized sysrecv, for receiving > 4 bytes
+    syssleep() - allows process to sleep for a number of milliseconds
+
+Helper functions:
+    syscallX - prepare stack for syscall with X parameters
+                and signal interrupt
  */
 
 #include <xeroskernel.h>
-#include <stdarg.h>
 
+static unsigned long request_reg;
+static int syscall0(int request);
+static int syscall1(int request, unsigned long arg1);
+static int syscall2(int request, unsigned long arg1, unsigned long arg2);
+static int syscall3(int request, unsigned long arg1,
+                    unsigned long arg2, unsigned long arg3);
 
-int syscall( int req, ... ) {
-/**********************************/
+/**
+ * Create a new process
+ * @param func - main function of new process
+ * @param stack - size of process's stack
+ */
+unsigned int syscreate(funcptr func, int stack) {
+    return (unsigned int)syscall2(SYSCALL_CREATE,
+                                  (unsigned long)func, (unsigned long)stack);
+}
 
-    va_list     ap;
-    int         rc;
+/**
+ * Pause the execution of this process and allow another process to run
+ */
+void sysyield(void) {
+    syscall0(SYSCALL_YIELD);
+}
 
-    va_start( ap, req );
+/**
+ * Stops this process
+ */
+void sysstop(void) {
+    syscall0(SYSCALL_STOP);
+}
 
-    __asm __volatile( " \
-        movl %1, %%eax \n\
-        movl %2, %%edx \n\
-        int  %3 \n\
-        movl %%eax, %0 \n\
-        "
-        : "=g" (rc)
-        : "g" (req), "g" (ap), "i" (KERNEL_INT)
-        : "%eax" 
-    );
+/**
+ * Gets the current proc's pid
+ * @return - current proc's pid
+ */
+int sysgetpid(void) {
+    return syscall0(SYSCALL_GETPID);
+}
+
+/**
+ * Terminates identified process
+ * @param pid - pid of the process to kill
+ * @return 0 on success, -1 if process does not exist, -2 if pid is its own
+ */
+int syskill(int pid) {
+    return syscall1(SYSCALL_KILL, (unsigned long)pid);
+}
+
+/**
+ * To be used by processes to perform synchronized output to the screen
+ * @param str - null terminated string to be printed
+ */
+void sysputs(char *str) {
+    syscall1(SYSCALL_PUTS, (unsigned long)str);
+}
+
+/**
+ * Delivers data from this process to another. That process must call sysrecv()
+ * @param dest_pid - pid of process to send to
+ * @param buffer - buffer containing data
+ * @param len - length of buffer
+ * @return 0 on success, -1 if proc terminates or does not exist,
+ *         -2 if sending to itself, -3 if any other error.
+ */
+int syssendbuf(int dest_pid, void *buffer, unsigned long len) {
+    //TODO: should we implement this further,
+    // we either return bytes sent, or len is changed to a ptr and does this
+    return syscall3(SYSCALL_SEND, (unsigned long)dest_pid,
+                    (unsigned long)buffer, len);
+}
+
+/**
+ * Called to receive data from a process which has called, or will call, syssend()
+ * @param from_pid - pid of proc to receive from. Put 0 to receive from any proc
+ *                   (*from_pid will be modified to the PID of the sending proc)
+ * @param buffer - buffer to store received data
+ * @param len - length of buffer
+ * @return 0 on success, -1 if proc terminates or does not exist,
+ *         -2 if sending to itself, -3 if any other error.
+ */
+int sysrecvbuf(int *from_pid, void *buffer, unsigned long len) {
+    //TODO: should we implement this further,
+    // len should be a ptr and set to bytes received
+    return syscall3(SYSCALL_RECV, (unsigned long)from_pid,
+                    (unsigned long)buffer, len);
+}
+
+/**
+ * Delivers data from this process to another. That process must call sysrecv()
+ *
+ * Note that this function is simply a more general wrapper around syssendbuf().
+ * This was done in anticipation of our kernel needing block data communication,
+ * and it would have been roughly the same amount of work to implement that
+ * as it would to implement a single unsigned long amount of data.
+ *
+ * @param dest_pid - pid of process to send to
+ * @param num - the data to deliver
+ * @return 0 on success, -1 if proc terminates or does not exist,
+ *         -2 if sending to itself, -3 if any other error.
+ */
+int syssend(int dest_pid, unsigned long num) {
+    return syssendbuf(dest_pid, &num, sizeof(num));
+}
+
+/**
+ * Called to receive a single unsigned long from another process.
+ *
+ * Note that this function is simply a more general wrapper around sysrecvbuf().
+ * This was done in anticipation of our kernel needing block data communication,
+ * and it would have been roughly the same amount of work to implement that
+ * as it would to implement a single unsigned long amount of data.
+ *
+ * @param from_pid - pid of process to receive from. If 0, recv_any is called,
+ *                   and we update from_pid to the value of the sending pid
+ * @param num - buffer to store the received data
+ * @return 0 on success, -1 if pid is invalid,
+ *         -2 if receiving from itself, -3 if any other error.
+ */
+int sysrecv(int *from_pid, unsigned long *num) {
+    return sysrecvbuf(from_pid, (void*)num, sizeof(num));
+}
+
+/**
+ * Allows process to sleep for a number of milliseconds
+ * @param milliseconds - the time to sleep for
+ * @return abs((time requested to sleep for) - (time actually slept))
+ */
+unsigned int syssleep(unsigned int milliseconds) {
+    return syscall1(SYSCALL_SLEEP, milliseconds);
+}
+
+/*****************************************************************************
+ * general syscallX functions which prepares the stack for a syscall
+ *
+ * In all cases, all parameters (REQ_ID and arg1, arg2, ..., argN) are all
+ * pushed onto the stack for the kernel. When the kernel completes, we need
+ * to pop all of these parameters off the stack so that our stack is back the
+ * way it used to be.
+ *
+ * The syscall return value is stored in %eax. It is moved into request_reg and
+ * returned from the syscall.
+ *****************************************************************************/
  
-    va_end( ap );
-
-    return( rc );
+static int syscall0(int request) {
+    __asm__ volatile( " \
+        push 8(%%ebp) \n\
+        int $50 \n\
+        pop request_reg \n\
+        movl %%eax, request_reg \n\
+    "
+    : /* no outputs */
+    : /* no range */
+    : "%eax"
+    );
+    
+    return (int)request_reg;
 }
 
-int syscreate( funcptr fp, size_t stack ) {
-/*********************************************/
+static int syscall1(int request, unsigned long arg1) {
+    __asm__ volatile( " \
+        push 12(%%ebp) \n\
+        push 8(%%ebp) \n\
+        int $50 \n\
+        pop request_reg \n\
+        pop request_reg \n\
+        movl %%eax, request_reg \n\
+    "
+    : /* no outputs */
+    : /* no range */
+    : "%eax"
+    );
 
-    return( syscall( SYS_CREATE, fp, stack ) );
+    return (int)request_reg;
 }
 
-void sysyield( void ) {
-/***************************/
-  syscall( SYS_YIELD );
+static int syscall2(int request, unsigned long arg1, unsigned long arg2) {
+    __asm__ volatile( " \
+        push 16(%%ebp) \n\
+        push 12(%%ebp) \n\
+        push 8(%%ebp) \n\
+        int $50 \n\
+        pop request_reg \n\
+        pop request_reg \n\
+        pop request_reg \n\
+        movl %%eax, request_reg \n\
+    "
+    : /* no outputs */
+    : /* no range */
+    : "%eax"
+    );
+    
+    return (int)request_reg;
 }
 
- void sysstop( void ) {
-/**************************/
-
-   syscall( SYS_STOP );
+static int syscall3(int request, unsigned long arg1,
+                    unsigned long arg2, unsigned long arg3) {
+    __asm__ volatile( " \
+        push 20(%%ebp) \n\
+        push 16(%%ebp) \n\
+        push 12(%%ebp) \n\
+        push 8(%%ebp) \n\
+        int $50 \n\
+        pop request_reg \n\
+        pop request_reg \n\
+        pop request_reg \n\
+        pop request_reg \n\
+        movl %%eax, request_reg \n\
+    "
+    : /* no outputs */
+    : /* no range */
+    : "%eax"
+    );
+    
+    return (int)request_reg;
 }
-
-unsigned int sysgetpid( void ) {
-/****************************/
-
-    return( syscall( SYS_GETPID ) );
-}
-
-void sysputs( char *str ) {
-/********************************/
-
-    syscall( SYS_PUTS, str );
-}
-
-unsigned int syssleep( unsigned int t ) {
-/*****************************/
-
-    return syscall( SYS_SLEEP, t );
-}
-
