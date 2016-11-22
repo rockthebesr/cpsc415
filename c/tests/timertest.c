@@ -39,7 +39,7 @@ static void cputimehelper(void);
  * Runs all timer tests
  */
 void timer_run_all_tests(void) {
-    initPIT(TICK_LENGTH_IN_MS * 10);
+    initPIT(1000 / TICK_LENGTH_IN_MS);
     test_preemption();
     test_preemption2();
     test_rand_timesharing();
@@ -288,35 +288,70 @@ static void test_rand_timesharing(void) {
  * Tests sysgetcputimes()
  */
 static void test_sysgetcputimes(void) {
-    // proc does not exist
-    /*
-    ASSERT_EQUAL(sysgetcputime(-8), -1);
-    ASSERT_EQUAL(sysgetcputime(8000), -1);
-
-    // idle proc
-    int time = sysgetcputime(0);
-    ASSERT(time >= 0);
-    kprintf("idleproc time: %d\n", time);
-
-    // currproc
-    time = sysgetcputime(-1);
-    ASSERT(time >= 0);
-    kprintf("currproc time: %d\n", time);
-
-    int pid = syscreate(&cputimehelper, DEFAULT_STACK_SIZE);
-    ASSERT(pid > 0);
-    
-    int old_time = sysgetcputime(pid);
+    // give all other procs a chance to die before we run
     sysyield();
 
-    time = sysgetcputime(pid);
-    ASSERT(time > old_time);
-    old_time = time;
+    // invalid addresses
+    ASSERT_EQUAL(sysgetcputimes((processStatuses*)-8), -1);
+    ASSERT_EQUAL(sysgetcputimes((processStatuses*)0xFFFFFFFF), -1);
+
+    // falls within hole
+    ASSERT_EQUAL(sysgetcputimes((processStatuses*)HOLESTART), -1);
+
+    processStatuses ps;
+
+    int num_procs_before = sysgetcputimes(&ps);
+    ASSERT(num_procs_before > 0 && num_procs_before < 32);
+    kprintf("num_procs_before in sysgetcputimes: %d\n", num_procs_before);
+
+    int proc_pid_1 = syscreate(&cputimehelper, DEFAULT_STACK_SIZE);
+    ASSERT(proc_pid_1 > 0);
+
+    int proc_pid_2 = syscreate(&cputimehelper, DEFAULT_STACK_SIZE);
+    ASSERT(proc_pid_2 > 0);
+
+    // created then killed to ensure stopped procs aren't in ps
+    int proc_pid_3 = syscreate(&cputimehelper, DEFAULT_STACK_SIZE);
+    ASSERT(proc_pid_3 > 0);
+    ASSERT_EQUAL(syskill(proc_pid_3), 0);
+
+    // call sysyield so created procs can run
     sysyield();
 
-    time = sysgetcputime(pid);
-    ASSERT(time > old_time);
-    */
+    int num_procs_after = sysgetcputimes(&ps);
+
+    // check procs are added, stopped processes aren't
+    ASSERT_EQUAL(num_procs_before + 2, num_procs_after);
+
+    // idle proc check
+    ASSERT_EQUAL(ps.pid[0], 0);
+    ASSERT_EQUAL(ps.status[0], PROC_STATE_READY);
+    ASSERT(ps.cpuTime[0] >= 0);
+
+    // current proc check - should be proc 1, timertest should be dispatched
+    ASSERT(ps.pid[1] >= 1);
+    ASSERT_EQUAL(ps.status[1], PROC_STATE_RUNNING);
+    ASSERT(ps.cpuTime[1] >= 1);
+
+    int hit_1 = 0;
+    int hit_2 = 0;
+    for (int i = 2; i <= num_procs_after; i++) {
+        if (!hit_1 && ps.pid[i] == proc_pid_1) {
+            hit_1 = 1;
+            ASSERT(ps.cpuTime[i] >= 1);
+        } else if (!hit_2 && ps.pid[i] == proc_pid_2) {
+            hit_2 = 1;
+            ASSERT(ps.cpuTime[i] >= 1);
+        } else {
+            ASSERT(ps.cpuTime[i] >= 0);
+        }
+
+        ASSERT_EQUAL(ps.status[i], PROC_STATE_READY);
+    }
+
+    ASSERT(hit_1 && hit_2);
+
+    kprintf("done test_sysgetcputimes()\n");
 }
 
 /**

@@ -294,12 +294,13 @@ void add_pcb_to_queue(proc_ctrl_block_t *proc, proc_state_enum_t new_state) {
     ASSERT(proc->curr_state != new_state);
     ASSERT(new_state < NUM_G_PROC_QUEUES && new_state >= 0);
 
+    proc->curr_state = new_state;
+
     if (proc->pid == 0) {
         // Do not add the idle proc to the queue
         return;
     }
 
-    proc->curr_state = new_state;
     add_proc_to_queue(proc, &g_proc_queue_heads[new_state],
                       &g_proc_queue_tails[new_state]);
 

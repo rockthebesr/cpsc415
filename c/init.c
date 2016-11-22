@@ -64,7 +64,7 @@ void initproc( void )				/* The beginning */
   //dispatch(&timer_run_all_tests);
 #else
   // enable pre-emption
-  initPIT(TICK_LENGTH_IN_MS * 10);
+  initPIT(1000 / TICK_LENGTH_IN_MS);
 
   // Launch the root process
   dispatch(&parent);
