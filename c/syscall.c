@@ -156,7 +156,7 @@ unsigned int syssleep(unsigned int milliseconds) {
 /**
  * fills a processStatuses block with all non-stopped procs' data
  * @param ps - the process status block to contain the data
- * @return index of final slot filled within each of ps's arrays
+ * @return index of final slot filled within each of ps's arrays, -1 on error.
  */
 int sysgetcputimes(processStatuses *ps) {
     return syscall1(SYSCALL_CPUTIMES, (unsigned long)ps);
