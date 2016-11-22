@@ -17,6 +17,8 @@ Accessible through pcb.h:
   pid_to_proc() - returns the proc with the pid, null otherwise
   get_idleproc() - returns the idle proc
 
+  get_all_proc_info() - fills a list of all procs's pids, statuses, and cpuTimes
+
   print_pcb_queue() - prints all blocks in particular queue, testing only
 
 Note:
@@ -40,6 +42,8 @@ proc_ctrl_block_t g_pcb_table[PCB_TABLE_SIZE];
 proc_ctrl_block_t g_idle_proc;
 
 static void verify_pcb_queues(void);
+static void fill_proc_info(processStatuses *ps, int slot,
+                           proc_ctrl_block_t *proc);
 
 static void add_proc_to_queue(proc_ctrl_block_t *proc,
                              proc_ctrl_block_t **head,
@@ -176,6 +180,47 @@ proc_ctrl_block_t* pid_to_proc(int pid) {
     }
 
     return NULL;
+}
+
+/**
+ * fills a list of all procs's pids, statuses, and cpuTimes
+ * @param ps - process status block to contain data
+ * @return index of final slot filled
+ */
+int get_all_proc_info(processStatuses *ps) {
+    ASSERT(ps != NULL);
+
+    int slot = 0;
+
+    // idleproc is always added
+    proc_ctrl_block_t* proc = get_idleproc();
+    fill_proc_info(ps, slot, proc);
+
+    for (int i = 0; i < PCB_TABLE_SIZE; i++) {
+        proc = &g_pcb_table[i];
+        if (proc->curr_state != PROC_STATE_STOPPED) {
+            slot++;
+            fill_proc_info(ps, slot, proc);
+        }
+    }
+
+    return slot;
+}
+
+/**
+ * fills a single entry of processStatuses
+ * @param ps - a processStatuses struct
+ * @param slot - the entry in each of ps's arrays to fill
+ * @param proc - the process to extract information from
+ */
+static void fill_proc_info(processStatuses *ps, int slot,
+                           proc_ctrl_block_t *proc) {
+    ASSERT(ps != NULL && proc != NULL);
+    ASSERT(0 <= slot && slot < PCB_TABLE_SIZE);
+
+    ps->pid[slot] = proc->pid;
+    ps->status[slot] = proc->curr_state;
+    ps->cpuTime[slot] = proc->cpu_time * TICK_LENGTH_IN_MS;
 }
 
 /**

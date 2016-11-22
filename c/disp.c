@@ -21,7 +21,7 @@ static void dispatch_syscall_puts(void);
 static void dispatch_syscall_send(void);
 static void dispatch_syscall_recv(void);
 static void dispatch_syscall_sleep(void);
-static int dispatch_syscall_getcputime(void);
+static int dispatch_syscall_getcputimes(void);
 static int dispatch_syscall_sighandler(void);
 static void dispatch_syscall_sigreturn(void);
 
@@ -94,8 +94,8 @@ void dispatch(funcptr root_proc) {
             dispatch_syscall_sleep();
             break;
 
-        case SYSCALL_CPUTIME:
-            currproc->ret = dispatch_syscall_getcputime();
+        case SYSCALL_CPUTIMES:
+            currproc->ret = dispatch_syscall_getcputimes();
             break;
 
         case SYSCALL_SIGHANDLER:
@@ -260,26 +260,16 @@ static void timer_handler(void) {
 }
 
 /**
- * Handler for sysgetcputime syscall
- * @return number of ticks consumed, or -1 if pid passed in does not exist
+ * Handler for sysgetcputimes syscall
+ * @return index of final slot filled within each of ps's arrays. -1 on error
  */
-static int dispatch_syscall_getcputime(void) {
-    int pid = currproc->args[0];
-    proc_ctrl_block_t* proc;
-
-    if (pid == -1) {
-        proc = currproc;
-    } else if (pid == 0) {
-        proc = get_idleproc();
-    } else {
-        proc = pid_to_proc(pid);
-    }
-
-    if (proc == NULL) {
+static int dispatch_syscall_getcputimes(void) {
+    processStatuses *ps = (processStatuses*)currproc->args[0];
+    if (verify_usrptr(ps, sizeof(processStatuses)) != OK) {
         return -1;
     }
 
-    return proc->cpu_time;
+    return get_all_proc_info(ps);
 }
 
 /**

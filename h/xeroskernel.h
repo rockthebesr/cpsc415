@@ -74,6 +74,10 @@ void  kmem_dump_free_list(void);
 int kmem_get_free_list_length(void);
 
 /* Process Manager */
+
+// maximum number of processes
+#define PCB_TABLE_SIZE 32
+
 typedef enum {
     PROC_STATE_READY = 0,
     PROC_STATE_STOPPED = 1,
@@ -122,7 +126,7 @@ typedef enum {
     SYSCALL_SEND,
     SYSCALL_RECV,
     SYSCALL_SLEEP,
-    SYSCALL_CPUTIME,
+    SYSCALL_CPUTIMES,
     SYSCALL_SIGHANDLER,
     SYSCALL_SIGRETURN,
 } syscall_request_id_t;
@@ -143,6 +147,12 @@ syscall_request_id_t ctsw_contextswitch(proc_ctrl_block_t *proc);
 
 
 /* syscall */
+typedef struct struct_ps {
+  int  pid[PCB_TABLE_SIZE];
+  int  status[PCB_TABLE_SIZE];
+  long  cpuTime[PCB_TABLE_SIZE];
+} processStatuses;
+
 extern unsigned int syscreate(funcptr func, int stack);
 extern void sysyield(void);
 extern void sysstop(void);
@@ -154,7 +164,7 @@ extern int sysrecvbuf(int *from_pid, void *buffer, unsigned long len);
 extern int syssend(int dest_pid, unsigned long num);
 extern int sysrecv(int *from_pid, unsigned long *num);
 extern unsigned int syssleep(unsigned int milliseconds);
-extern int sysgetcputime(int pid);
+extern int sysgetcputimes(processStatuses *ps);
 extern int syssighandler(int signal, funcptr_args1 newhandler,
                          funcptr_args1 *oldHandler);
 extern void syssigreturn(void *old_sp);

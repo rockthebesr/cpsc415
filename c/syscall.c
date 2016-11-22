@@ -11,7 +11,7 @@ Called from user processes:
     syssendbuf() - generalized sysend, for sending > 4 bytes
     sysrecvbuf() - generalized sysrecv, for receiving > 4 bytes
     syssleep() - allows process to sleep for a number of milliseconds
-    sysgetcputime() - gets number of quantums the process has consumed
+    sysgetcputimes() - fills a processStatuses block with all non-stopped procs
     syssighandler() - registers the handler as a signal handler
     syssigreturn() - restores a process's context after a signal is handled
 
@@ -154,12 +154,12 @@ unsigned int syssleep(unsigned int milliseconds) {
 }
 
 /**
- * Returns the number of quantums the process has consumed
- * @param pid - pid of proc to check. If -1, currproc is checked, if 0, idleproc
- * @return number of ticks consumed, or -1 if pid does not exist
+ * fills a processStatuses block with all non-stopped procs' data
+ * @param ps - the process status block to contain the data
+ * @return index of final slot filled within each of ps's arrays
  */
-int sysgetcputime(int pid) {
-    return syscall1(SYSCALL_CPUTIME, pid);
+int sysgetcputimes(processStatuses *ps) {
+    return syscall1(SYSCALL_CPUTIMES, (unsigned long)ps);
 }
 
 /**
