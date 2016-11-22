@@ -148,9 +148,9 @@ syscall_request_id_t ctsw_contextswitch(proc_ctrl_block_t *proc);
 
 /* syscall */
 typedef struct struct_ps {
-  int  pid[PCB_TABLE_SIZE];
-  int  status[PCB_TABLE_SIZE];
-  long  cpuTime[PCB_TABLE_SIZE];
+  int pid[PCB_TABLE_SIZE];
+  int status[PCB_TABLE_SIZE];
+  long cpuTime[PCB_TABLE_SIZE];
 } processStatuses;
 
 extern unsigned int syscreate(funcptr func, int stack);
