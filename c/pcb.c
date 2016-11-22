@@ -31,6 +31,7 @@ Note:
 Further details can be found in the documentation above the function headers.
 */
 
+#include <xeroslib.h>
 #include <xeroskernel.h>
 #include <pcb.h>
 
@@ -113,27 +114,29 @@ proc_ctrl_block_t* get_next_available_pcb(void) {
 
     remove_pcb_from_queue(proc);
 
+    // save old pid before clearing proc, it is used to calculate the new pid
+    int old_pid = proc->pid;
+
+    // many pcb fields are initialized to 0,
+    // and this also prevents values from leaking
+    memset(proc, 0, sizeof(proc_ctrl_block_t));
+
     proc->signal_table = kmalloc(SIGNAL_TABLE_SIZE * sizeof(funcptr_args1));
     if (proc->signal_table == NULL) {
+        proc->pid = old_pid;
         add_pcb_to_queue(proc, PROC_STATE_STOPPED);
         return NULL;
     }
 
-    proc->signals_fired = 0;
-    proc->cpu_time = 0;
+    memset(proc->signal_table, 0,
+           sizeof(SIGNAL_TABLE_SIZE * sizeof(funcptr_args1)));
 
-    // Initialize msg queues
-    proc->blocker = NULL;
+    proc->curr_state = PROC_STATE_STOPPED;
     proc->blocker_queue = NO_BLOCKER;
-    for (int i = 0; i < 2; i++) {
-        proc->msg_queue_heads[i] = NULL;
-        proc->msg_queue_tails[i] = NULL;
-    }
 
     // To allow us to access a proc by its pid in constant time,
     // we set our pids a multiple of PCB_TABLE_SIZE
-    int old_pid = proc->pid;
-    proc->pid += PCB_TABLE_SIZE;
+    proc->pid = old_pid + PCB_TABLE_SIZE;
 
     // by the time we've overflowed, its probably fine to reuse a pid
     if (proc->pid < 1) {
