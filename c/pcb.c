@@ -54,7 +54,7 @@ static void remove_proc_from_queue(proc_ctrl_block_t *proc,
                                   proc_ctrl_block_t **head,
                                   proc_ctrl_block_t **tail);
 
-static void fail_msg_blocked_procs(proc_ctrl_block_t *proc,
+static void fail_blocked_procs(proc_ctrl_block_t *proc,
                                    blocking_queue_t queue);
 
 static void resolve_blocking(proc_ctrl_block_t *proc);
@@ -246,9 +246,9 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
     kfree(proc->signal_table);
 
     // all blocked procs on the msg queues must be notified
-    fail_msg_blocked_procs(proc, SENDER);
-    fail_msg_blocked_procs(proc, RECEIVER);
-    fail_msg_blocked_procs(proc, WAITING);
+    fail_blocked_procs(proc, SENDER);
+    fail_blocked_procs(proc, RECEIVER);
+    fail_blocked_procs(proc, WAITING);
 
     if (proc->blocking_queue_name != NO_BLOCKER) {
         resolve_blocking(proc);
@@ -282,7 +282,7 @@ static void resolve_blocking(proc_ctrl_block_t *proc) {
  * @param proc - the owner of the message queue
  * @param queue - the particular message queue to flush
  */
-static void fail_msg_blocked_procs(proc_ctrl_block_t *proc,
+static void fail_blocked_procs(proc_ctrl_block_t *proc,
                                    blocking_queue_t queue) {
     ASSERT(proc != NULL);
     int ret;

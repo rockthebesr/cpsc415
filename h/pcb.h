@@ -21,13 +21,13 @@ void add_pcb_to_queue(proc_ctrl_block_t *proc, proc_state_enum_t new_state);
 void remove_pcb_from_queue(proc_ctrl_block_t *proc);
 void print_pcb_queue(proc_state_enum_t queue);
 
-void add_proc_to_msgqueue(proc_ctrl_block_t *proc,
-                          proc_ctrl_block_t *queue_owner,
-                          blocking_queue_t queue);
+void add_proc_to_blocking_queue(proc_ctrl_block_t *proc,
+                                proc_ctrl_block_t *queue_owner,
+                                blocking_queue_t queue);
 
-int remove_proc_from_msgqueue(proc_ctrl_block_t *proc,
-                              proc_ctrl_block_t *queue_owner,
-                              blocking_queue_t queue);
+int remove_proc_from_blocking_queue(proc_ctrl_block_t *proc,
+                                    proc_ctrl_block_t *queue_owner,
+                                    blocking_queue_t queue);
 
 proc_ctrl_block_t* pid_to_proc(int pid);
 proc_ctrl_block_t* get_idleproc(void);
