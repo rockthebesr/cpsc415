@@ -7,8 +7,8 @@ Accessible through pcb.h:
 
   add_pcb_to_queue() - adds pcb to a queue, changes it to the appropriate state
   remove_pcb_from_queue() - remove pcb from its queue, does not change state
-  add_proc_to_msgqueue() - adds proc to another's message queue
-  remove_proc_from_msgqueue() - removes proc from another's message queue
+  add_proc_to_blocking_queue() - adds proc to another's message queue
+  remove_proc_from_blocking_queue() - removes proc from another's message queue
   get_next_proc() - pops the first pcb in the READY queue, sets it to RUNNING
 
   cleanup_proc() - frees a pcb's contents, and prepares pcb for future use
@@ -134,7 +134,7 @@ proc_ctrl_block_t* get_next_available_pcb(void) {
            sizeof(SIGNAL_TABLE_SIZE * sizeof(funcptr_args1)));
 
     proc->curr_state = PROC_STATE_STOPPED;
-    proc->blocker_queue = NO_BLOCKER;
+    proc->blocking_queue_name = NO_BLOCKER;
 
     // To allow us to access a proc by its pid in constant time,
     // we set our pids a multiple of PCB_TABLE_SIZE
@@ -250,7 +250,7 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
     fail_msg_blocked_procs(proc, RECEIVER);
     fail_msg_blocked_procs(proc, WAITING);
 
-    if (proc->blocker_queue != NO_BLOCKER) {
+    if (proc->blocking_queue_name != NO_BLOCKER) {
         resolve_blocking(proc);
     }
 
@@ -262,15 +262,15 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
  * @param proc - the process to unblock
  */
 static void resolve_blocking(proc_ctrl_block_t *proc) {
-    ASSERT(proc != NULL && proc->blocker_queue != NO_BLOCKER);
+    ASSERT(proc != NULL && proc->blocking_queue_name != NO_BLOCKER);
     ASSERT_EQUAL(proc->curr_state, PROC_STATE_BLOCKED);
 
-    if (proc->blocker_queue == SLEEP) {
+    if (proc->blocking_queue_name == SLEEP) {
         wake(proc);
-    } else if (proc->blocker && proc->blocker != proc) {
-        // proc->blocker == proc indicates proc called recv_any
-        int in_queue = remove_proc_from_msgqueue(proc, proc->blocker,
-                                                 proc->blocker_queue);
+    } else if (proc->blocking_proc && proc->blocking_proc != proc) {
+        // proc->blocking_proc == proc indicates proc called recv_any
+        int in_queue = remove_proc_from_blocking_queue(proc, proc->blocking_proc,
+                                                 proc->blocking_queue_name);
         ASSERT_EQUAL(in_queue, 1);
         proc->ret = 0;
     }
@@ -286,16 +286,16 @@ static void fail_msg_blocked_procs(proc_ctrl_block_t *proc,
                                    blocking_queue_t queue) {
     ASSERT(proc != NULL);
     int ret;
-    proc_ctrl_block_t *curr = proc->msg_queue_heads[queue];
+    proc_ctrl_block_t *curr = proc->blocking_queue_heads[queue];
 
     while (curr != NULL) {
-        ret = remove_proc_from_msgqueue(curr, proc, queue);
+        ret = remove_proc_from_blocking_queue(curr, proc, queue);
         ASSERT_EQUAL(ret, 1);
 
         curr->ret = SYSPID_DNE;
         add_pcb_to_queue(curr, PROC_STATE_READY);
 
-        curr = proc->msg_queue_heads[queue];
+        curr = proc->blocking_queue_heads[queue];
     }
 }
 
@@ -346,19 +346,19 @@ void remove_pcb_from_queue(proc_ctrl_block_t *proc) {
  * @param queue_owner - whose message queue to alter
  * @param queue - indicates sending or receiving queue
  */
-void add_proc_to_msgqueue(proc_ctrl_block_t *proc,
+void add_proc_to_blocking_queue(proc_ctrl_block_t *proc,
                           proc_ctrl_block_t *queue_owner,
                           blocking_queue_t queue) {
 
     ASSERT(proc != NULL && queue_owner != NULL);
-    add_proc_to_queue(proc, &queue_owner->msg_queue_heads[queue],
-                      &queue_owner->msg_queue_tails[queue]);
+    add_proc_to_queue(proc, &queue_owner->blocking_queue_heads[queue],
+                      &queue_owner->blocking_queue_tails[queue]);
 
     // A proc can only be blocked on one item at a time.
     // We keep track of which queue we're in, so we can
     // remove ourselves, should we be killed.
-    proc->blocker = queue_owner;
-    proc->blocker_queue = queue;
+    proc->blocking_proc = queue_owner;
+    proc->blocking_queue_name = queue;
 }
 
 /**
@@ -368,23 +368,24 @@ void add_proc_to_msgqueue(proc_ctrl_block_t *proc,
  * @param queue - indicates sending or receiving queue
  * @return 1 if proc was in queue, 0 otherwise
  */
-int remove_proc_from_msgqueue(proc_ctrl_block_t *proc,
+int remove_proc_from_blocking_queue(proc_ctrl_block_t *proc,
                               proc_ctrl_block_t *queue_owner,
                               blocking_queue_t queue) {
 
     ASSERT(proc != NULL && queue_owner != NULL);
 
-    // check if proc is actually on queue_owner's specific msgqueue
-    if (proc->blocker_queue != queue || proc->blocker != queue_owner) {
+    // check if proc is actually on queue_owner's specific blocking_queue
+    if (proc->blocking_queue_name != queue ||
+        proc->blocking_proc != queue_owner) {
         return 0;
     }
 
     ASSERT_EQUAL(proc->curr_state, PROC_STATE_BLOCKED);
-    remove_proc_from_queue(proc, &queue_owner->msg_queue_heads[queue],
-                           &queue_owner->msg_queue_tails[queue]);
+    remove_proc_from_queue(proc, &queue_owner->blocking_queue_heads[queue],
+                           &queue_owner->blocking_queue_tails[queue]);
 
-    proc->blocker = NULL;
-    proc->blocker_queue = NO_BLOCKER;
+    proc->blocking_proc = NULL;
+    proc->blocking_queue_name = NO_BLOCKER;
 
     return 1;
 }

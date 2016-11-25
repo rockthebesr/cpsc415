@@ -35,8 +35,8 @@ static void remove_from_sleeping_list(proc_ctrl_block_t *proc);
 void sleep(proc_ctrl_block_t *proc, unsigned int time) {
     ASSERT(time > 0);
     proc->curr_state = PROC_STATE_BLOCKED;
-    proc->blocker_queue = SLEEP;
-    proc->blocker = NULL;
+    proc->blocking_queue_name = SLEEP;
+    proc->blocking_proc = NULL;
 
     proc->ret = time / TICK_LENGTH_IN_MS + (time % TICK_LENGTH_IN_MS ? 1 : 0);
     add_to_sleeping_list(proc);
@@ -49,10 +49,10 @@ void sleep(proc_ctrl_block_t *proc, unsigned int time) {
  */
 void wake(proc_ctrl_block_t *proc) {
     ASSERT(proc != NULL);
-    ASSERT_EQUAL(proc->blocker_queue, SLEEP);
+    ASSERT_EQUAL(proc->blocking_queue_name, SLEEP);
 
     remove_from_sleeping_list(proc);
-    proc->blocker_queue = NO_BLOCKER;
+    proc->blocking_queue_name = NO_BLOCKER;
 
     proc->ret *= TICK_LENGTH_IN_MS;
 }

@@ -105,11 +105,10 @@ typedef struct proc_ctrl_block {
     funcptr_args1 *signal_table;
     int signals_fired;
     int cpu_time;
-    // TODO: rename msgqueues
-    struct proc_ctrl_block *blocker;
-    blocking_queue_t blocker_queue;
-    struct proc_ctrl_block *msg_queue_heads[3];
-    struct proc_ctrl_block *msg_queue_tails[3];
+    struct proc_ctrl_block *blocking_proc;
+    blocking_queue_t blocking_queue_name;
+    struct proc_ctrl_block *blocking_queue_heads[3];
+    struct proc_ctrl_block *blocking_queue_tails[3];
 } proc_ctrl_block_t;
 
 

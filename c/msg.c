@@ -25,16 +25,16 @@ int send(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
     ASSERT(srcproc != NULL && destproc != NULL && buffer != NULL && len > 0);
 
     // special flag to indicate recv_any was called
-    int recv_any_called = (destproc->blocker == destproc);
+    int recv_any_called = (destproc->blocking_proc == destproc);
 
     if (recv_any_called ||
-        remove_proc_from_msgqueue(destproc, srcproc, RECEIVER)) {
+        remove_proc_from_blocking_queue(destproc, srcproc, RECEIVER)) {
 
         // Case 1: Receiver is waiting for us to send
         DEBUG("Receiver has been waiting for us!\n");
 
         if (recv_any_called) {
-            destproc->blocker = NULL;
+            destproc->blocking_proc = NULL;
             int *from_pid = (int*)destproc->args[0];
             *from_pid = srcproc->pid;
         }
@@ -54,7 +54,7 @@ int send(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
         // Case 2: We have to block until the receiver is ready
         DEBUG("Waiting for receiver...\n");
         
-        add_proc_to_msgqueue(srcproc, destproc, SENDER);
+        add_proc_to_blocking_queue(srcproc, destproc, SENDER);
         return SYSMSG_BLOCKED;
     }
 }
@@ -71,7 +71,7 @@ int recv(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
          void *buffer, unsigned long len) {
     ASSERT(srcproc != NULL && destproc != NULL && buffer != NULL && len > 0);
     
-    if (remove_proc_from_msgqueue(srcproc, destproc, SENDER)) {
+    if (remove_proc_from_blocking_queue(srcproc, destproc, SENDER)) {
         // Case 1: Sender has been waiting for us
         DEBUG("Sender has been waiting for us!\n");
 
@@ -90,7 +90,7 @@ int recv(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
         // Case 2: Wait for sender
         DEBUG("Waiting for receiver...\n");
         
-        add_proc_to_msgqueue(destproc, srcproc, RECEIVER);
+        add_proc_to_blocking_queue(destproc, srcproc, RECEIVER);
         return SYSMSG_BLOCKED;
     }
 }
@@ -105,13 +105,13 @@ int recv(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
 int recv_any(proc_ctrl_block_t *destproc, void *buffer, unsigned long len) {
     ASSERT(destproc != NULL && buffer != NULL && len > 0);
 
-    proc_ctrl_block_t *srcproc = destproc->msg_queue_heads[SENDER];
+    proc_ctrl_block_t *srcproc = destproc->blocking_queue_heads[SENDER];
 
     if (srcproc != NULL) {
         // Case 1: A sender has been waiting for us
         DEBUG("Sender has been waiting for us!\n");
 
-        int ret = remove_proc_from_msgqueue(srcproc, destproc, SENDER);
+        int ret = remove_proc_from_blocking_queue(srcproc, destproc, SENDER);
         if (!ret) {
             return SYSERR_OTHER;
         }
@@ -135,7 +135,7 @@ int recv_any(proc_ctrl_block_t *destproc, void *buffer, unsigned long len) {
         DEBUG("Waiting for receiver...\n");
 
         // special flag to indicate receive any
-        destproc->blocker = destproc;
+        destproc->blocking_proc = destproc;
 
         return SYSMSG_BLOCKED;
     }

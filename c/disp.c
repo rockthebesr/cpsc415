@@ -166,7 +166,7 @@ static void dispatch_syscall_wait(void) {
     }
 
     currproc->curr_state = PROC_STATE_BLOCKED;
-    add_proc_to_msgqueue(currproc, proc_to_wait_on, WAITING);
+    add_proc_to_blocking_queue(currproc, proc_to_wait_on, WAITING);
 
     currproc->ret = SYSWAIT_SIGNALLED;
     currproc = get_next_proc();
