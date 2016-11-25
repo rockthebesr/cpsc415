@@ -25,29 +25,38 @@ static void msgtest07_recv_any_queue_kill(void);
 static void msgtest08_recv_out_of_order(void);
 static void msgtest09_send_to_killed_proc(void);
 static void msgtest10_recv_from_killed_proc(void);
-
 static void msgtest11_sendbuf(void);
+
+static int syskill_wrapper(int pid);
 
 static int g_recv_done_flag;
 static int g_kill_this_pid;
 
 void msg_run_all_tests(void) {
-    
     msgtest01_send_then_recv();
     msgtest02_recv_then_send();
     msgtest03_send_then_recv_any();
     msgtest03_recv_any_then_send();
     msgtest04_recv_any_queue();
     msgtest05_send_bad_params();
-    msgtest06_recv_bad_params();
-    msgtest07_recv_any_queue_kill();
+    //msgtest06_recv_bad_params();
+    //msgtest07_recv_any_queue_kill();
     msgtest08_recv_out_of_order();
-    msgtest09_send_to_killed_proc();
-    msgtest10_recv_from_killed_proc();
+    //    msgtest09_send_to_killed_proc();
+    //msgtest10_recv_from_killed_proc();
     msgtest11_sendbuf();
     
     kprintf("Done msg_run_all_tests, looping forever.\n");
     while(1);
+}
+
+/**
+ * Sets up termination signal handler, calls signal on proc
+ */
+static int syskill_wrapper(int pid) {
+    (void)pid;
+    // TODO setup handler to systop
+    return syskill(pid, 31);
 }
 
 static void msgtest_basic_recver(void) {
@@ -72,7 +81,7 @@ static void msgtest_basic_sender(void) {
 }
 
 static void msgtest_killer(void) {
-    syskill(g_kill_this_pid);
+    syskill_wrapper(g_kill_this_pid);
 }
 
 static void msgtest01_send_then_recv(void) {
@@ -235,7 +244,7 @@ static void msgtest06_recv_bad_params(void) {
     DEBUG("recv from NULL buffer: %d\n", result);
     
     // cleanup
-    syskill(another_pid);
+    syskill_wrapper(another_pid);
 }
 
 /**
@@ -256,7 +265,7 @@ static void msgtest07_recv_any_queue_kill(void) {
     
     // Kill half
     for (i = 0; i < 10; i += 2) {
-        syskill(pids[i]);
+        syskill_wrapper(pids[i]);
     }
     
     // Recv any from the remaining

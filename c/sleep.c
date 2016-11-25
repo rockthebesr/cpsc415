@@ -2,7 +2,7 @@
 
 Called from outside:
     sleep() - Puts a process to sleep for a specific amount of time
-    wake() - Ends the sleep of a process, and places in on the ready queue
+    wake() - Ends the sleep of a process
 
     tick() - Monitors time, so we know when sleeping procs are done.
 
@@ -43,7 +43,7 @@ void sleep(proc_ctrl_block_t *proc, unsigned int time) {
 }
 
 /**
- * Ends the sleep of a process, and places in on the ready queue
+ * Ends the sleep of a process
  * Assumes the process is in the sleeping queue
  * @param proc - the process to wake
  */
@@ -55,22 +55,27 @@ void wake(proc_ctrl_block_t *proc) {
     proc->blocker_queue = NO_BLOCKER;
 
     proc->ret *= TICK_LENGTH_IN_MS;
-    add_pcb_to_queue(proc, PROC_STATE_READY);
 }
 
 /**
  * Called at the end of a time slice.
- * Decreases the time each sleeping proc is waiting, removes those that finish
+ * Decreases the time each sleeping proc is waiting,
+ * removes those that finish, places them on the ready queue
  */
 void tick(void) {
     if (g_sleeping_list == NULL) {
         return;
     }
 
+    proc_ctrl_block_t *proc;
+
     // subtract 1 time slice, and remove all expired procs
     g_sleeping_list->ret--;
     while (g_sleeping_list != NULL && g_sleeping_list->ret <= 0) {
-        wake(g_sleeping_list);
+        // wake may change the value of g_sleeping_list
+        proc = g_sleeping_list;
+        wake(proc);
+        add_pcb_to_queue(proc, PROC_STATE_READY);
     }
 }
 

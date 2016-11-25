@@ -17,6 +17,7 @@ Further details can be found in the documentation above the function headers.
 static void timer_handler(void);
 static int dispatch_syscall_create(void);
 static int dispatch_syscall_kill(void);
+static void dispatch_syscall_wait(void);
 static void dispatch_syscall_puts(void);
 static void dispatch_syscall_send(void);
 static void dispatch_syscall_recv(void);
@@ -78,6 +79,10 @@ void dispatch(funcptr root_proc) {
             currproc->ret = dispatch_syscall_kill();
             break;
 
+        case SYSCALL_WAIT:
+            dispatch_syscall_wait();
+            break;
+
         case SYSCALL_PUTS:
             dispatch_syscall_puts();
             break;
@@ -134,22 +139,37 @@ static int dispatch_syscall_create(void) {
 
 /**
  * Handler for the syskill syscall
- * @return returns 0 on success, or error code - see syskill for details
+ * @return returns 0 on success, error code on failure
  */
-static int dispatch_syscall_kill() {
+static int dispatch_syscall_kill(void) {
+    int pid = currproc->args[0];
+    int signal = currproc->args[1];
+
+    proc_ctrl_block_t* proc = pid_to_proc(pid);
+    if (proc == NULL) {
+        return SYSKILL_TARGET_DNE;
+    }
+
+    return set_proc_signal(proc, signal);
+}
+
+/**
+ * Handler for the syswait syscall
+ */
+static void dispatch_syscall_wait(void) {
     int pid = currproc->args[0];
 
-    // pids start at 1, cannot be negative
-    if (pid < 1) {
-        return SYSPID_DNE;
+    proc_ctrl_block_t* proc_to_wait_on = pid_to_proc(pid);
+    if (proc_to_wait_on == NULL) {
+        currproc->ret = SYSPID_DNE;
+        return;
     }
 
-    // process cannot kill itself - should use sysstop() instead
-    if (currproc->pid == pid) {
-        return SYSPID_ME;
-    }
+    currproc->curr_state = PROC_STATE_BLOCKED;
+    add_proc_to_msgqueue(currproc, proc_to_wait_on, WAITING);
 
-    return terminate_proc_if_exists(pid);
+    currproc->ret = SYSWAIT_SIGNALLED;
+    currproc = get_next_proc();
 }
 
 /**

@@ -5,7 +5,8 @@ Called from user processes:
     sysyield() - pause execution and allow another process to run
     sysstop() - stops process
     sysgetpid() - returns current process's pid
-    syskill() - kills identified process
+    syskill() - delivers a signal to a process
+    syswait() - waits for a process to terminate
     syssend() - sends data to a particular process
     sysrecv() - receives data delivered by syssend()
     syssendbuf() - generalized sysend, for sending > 4 bytes
@@ -62,12 +63,22 @@ int sysgetpid(void) {
 }
 
 /**
- * Terminates identified process
- * @param pid - pid of the process to kill
- * @return 0 on success, -1 if process does not exist, -2 if pid is its own
+ * delivers a signal to the process
+ * @param pid - pid of the process to signal
+ * @param signalNumber - number of signal to be delivered
+ * @return 0 on success, error code on failure
  */
-int syskill(int pid) {
-    return syscall1(SYSCALL_KILL, (unsigned long)pid);
+int syskill(int pid, int signalNumber) {
+    return syscall2(SYSCALL_KILL, pid, signalNumber);
+}
+
+/**
+ * Waits for the process to terminate
+ * @param pid - pid of the process to kill
+ * @return 0 on success, error code on failure
+ */
+int syswait(int pid) {
+    return syscall1(SYSCALL_WAIT, pid);
 }
 
 /**

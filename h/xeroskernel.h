@@ -88,6 +88,7 @@ typedef enum {
 typedef enum {
     SENDER = 0,
     RECEIVER = 1,
+    WAITING = 2,
     SLEEP,
     NO_BLOCKER
 } blocking_queue_t;
@@ -104,10 +105,11 @@ typedef struct proc_ctrl_block {
     funcptr_args1 *signal_table;
     int signals_fired;
     int cpu_time;
+    // TODO: rename msgqueues
     struct proc_ctrl_block *blocker;
     blocking_queue_t blocker_queue;
-    struct proc_ctrl_block *msg_queue_heads[2];
-    struct proc_ctrl_block *msg_queue_tails[2];
+    struct proc_ctrl_block *msg_queue_heads[3];
+    struct proc_ctrl_block *msg_queue_tails[3];
 } proc_ctrl_block_t;
 
 
@@ -122,6 +124,7 @@ typedef enum {
     SYSCALL_STOP,
     SYSCALL_GETPID,
     SYSCALL_KILL,
+    SYSCALL_WAIT,
     SYSCALL_PUTS,
     SYSCALL_SEND,
     SYSCALL_RECV,
@@ -140,6 +143,9 @@ void dispatch(funcptr root_proc);
 #define SYSPID_ME      -2
 #define SYSERR_OTHER   -3
 #define SYSMSG_BLOCKED -4
+#define SYSKILL_TARGET_DNE -712
+#define SYSKILL_INVALID_SIGNAL -651
+#define SYSWAIT_SIGNALLED -2
 
 /* ctsw */
 void ctsw_init_evec(void);
@@ -157,7 +163,8 @@ extern unsigned int syscreate(funcptr func, int stack);
 extern void sysyield(void);
 extern void sysstop(void);
 extern int sysgetpid(void);
-extern int syskill(int pid);
+extern int syskill(int pid, int signalNumber);
+extern int syswait(int pid);
 extern void sysputs(char *str);
 extern int syssendbuf(int dest_pid, void *buffer, unsigned long len);
 extern int sysrecvbuf(int *from_pid, void *buffer, unsigned long len);
@@ -207,6 +214,7 @@ extern void sleep(proc_ctrl_block_t *proc, unsigned int time);
 extern void wake(proc_ctrl_block_t *proc);
 extern void tick(void);
 
+extern void sigtramp(funcptr_args1 handler, void *cntx);
 
 /* user programs */
 extern void root(void);

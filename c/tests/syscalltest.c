@@ -29,7 +29,7 @@ static void syscall_fibonacci_test_func1(void);
 static void syscall_fibonacci_test_func2(void);
 static void syscall_fibonacci_test_func3(void);
 static void sysgetpid_proc(void);
-static void syskill_proc(void);
+//static void syskill_proc(void);
 
 /**
  * Runs all syscall tests
@@ -224,6 +224,7 @@ static void sysgetpid_proc(void) {
  * tests all syskill() functionality
  */
 static void test_syskill(void) {
+    /*
     kprintf("testing syskill()...\n");
 
     // proc does not exist
@@ -244,11 +245,11 @@ static void test_syskill(void) {
     }
 
     MASS_SYSYIELD();
+    */
 }
 
 /**
  * created by test_syskill()
- */
 static void syskill_proc(void) {
     // yield, so we have a chance to kill
     sysyield();
@@ -256,6 +257,7 @@ static void syskill_proc(void) {
     // proc should be killed, we must never reach this
     ASSERT(0);
 }
+ */
 
 /**
  * Tests sysputs(). Output to be verified by user

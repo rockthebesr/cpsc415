@@ -33,8 +33,8 @@ proc_ctrl_block_t* pid_to_proc(int pid);
 proc_ctrl_block_t* get_idleproc(void);
 
 int get_all_proc_info(processStatuses *ps);
+int set_proc_signal(proc_ctrl_block_t *proc, int signal);
 
-int terminate_proc_if_exists(int pid);
 void cleanup_proc(proc_ctrl_block_t *proc);
 
 #endif

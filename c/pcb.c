@@ -12,12 +12,12 @@ Accessible through pcb.h:
   get_next_proc() - pops the first pcb in the READY queue, sets it to RUNNING
 
   cleanup_proc() - frees a pcb's contents, and prepares pcb for future use
-  terminate_proc_if_exists() - terminates the process with the particular pid
 
   pid_to_proc() - returns the proc with the pid, null otherwise
   get_idleproc() - returns the idle proc
 
   get_all_proc_info() - fills a list of all procs's pids, statuses, and cpuTimes
+  set_proc_signal() - marks a signal for delivery
 
   print_pcb_queue() - prints all blocks in particular queue, testing only
 
@@ -56,6 +56,8 @@ static void remove_proc_from_queue(proc_ctrl_block_t *proc,
 
 static void fail_msg_blocked_procs(proc_ctrl_block_t *proc,
                                    blocking_queue_t queue);
+
+static void resolve_blocking(proc_ctrl_block_t *proc);
 
 /**
  * Initializes process queues, process control block table
@@ -149,27 +151,6 @@ proc_ctrl_block_t* get_next_available_pcb(void) {
 }
 
 /**
- * Finds the pcb in the PCB table, terminates if exists
- * @param pid - the pid of the process to kill
- * @return 0 on success, SYSPID_DNE if process does not exist
- */
-int terminate_proc_if_exists(int pid) {
-    ASSERT(pid >= 1);
-
-    proc_ctrl_block_t *proc = pid_to_proc(pid);
-    if (proc == NULL) {
-        return SYSPID_DNE;
-    }
-
-    if (proc->curr_state != PROC_STATE_BLOCKED) {
-        remove_pcb_from_queue(proc);
-    }
-    cleanup_proc(proc);
-
-    return 0;
-}
-
-/**
  * Returns the proc if it exists, null otherwise. Can be used to validate pids.
  * @param pid - the process to check
  * @return the proc's pcb
@@ -211,6 +192,28 @@ int get_all_proc_info(processStatuses *ps) {
 }
 
 /**
+ * Marks a signal for delivery
+ * @param proc - the process to deliver the signal to
+ * @param signal - the signal to deliver
+ * @return 0 on success, error code on failure
+ */
+int set_proc_signal(proc_ctrl_block_t *proc, int signal) {
+    ASSERT(proc != NULL);
+
+    if (signal < 0 || signal >= SIGNAL_TABLE_SIZE) {
+        return SYSKILL_INVALID_SIGNAL;
+    }
+
+    proc->signals_fired |= (1 << signal);
+
+    if (proc->curr_state == PROC_STATE_BLOCKED) {
+        resolve_blocking(proc);
+    }
+
+    return 0;
+}
+
+/**
  * fills a single entry of processStatuses
  * @param ps - a processStatuses struct
  * @param slot - the entry in each of ps's arrays to fill
@@ -245,19 +248,32 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
     // all blocked procs on the msg queues must be notified
     fail_msg_blocked_procs(proc, SENDER);
     fail_msg_blocked_procs(proc, RECEIVER);
-    
-    if (proc->blocker_queue == SLEEP) {
-        wake(proc);
-        // wake puts us onto the READY queue.
-        remove_pcb_from_queue(proc);
-    } else if (proc->blocker && proc->blocker != proc) {
-        // proc->blocker == proc indicates proc called recv_any
-        int ret = remove_proc_from_msgqueue(proc, proc->blocker,
-                                            proc->blocker_queue);
-        ASSERT_EQUAL(ret, 1);
+    fail_msg_blocked_procs(proc, WAITING);
+
+    if (proc->blocker_queue != NO_BLOCKER) {
+        resolve_blocking(proc);
     }
 
     add_pcb_to_queue(proc, PROC_STATE_STOPPED);
+}
+
+/**
+ * Handle's a proc's premature end to being unblocked
+ * @param proc - the process to unblock
+ */
+static void resolve_blocking(proc_ctrl_block_t *proc) {
+    ASSERT(proc != NULL && proc->blocker_queue != NO_BLOCKER);
+    ASSERT_EQUAL(proc->curr_state, PROC_STATE_BLOCKED);
+
+    if (proc->blocker_queue == SLEEP) {
+        wake(proc);
+    } else if (proc->blocker && proc->blocker != proc) {
+        // proc->blocker == proc indicates proc called recv_any
+        int in_queue = remove_proc_from_msgqueue(proc, proc->blocker,
+                                                 proc->blocker_queue);
+        ASSERT_EQUAL(in_queue, 1);
+        proc->ret = 0;
+    }
 }
 
 /**
