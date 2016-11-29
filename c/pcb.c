@@ -48,15 +48,15 @@ static void fill_proc_info(processStatuses *ps, int slot,
                            proc_ctrl_block_t *proc);
 
 static void add_proc_to_queue(proc_ctrl_block_t *proc,
-                             proc_ctrl_block_t **head,
-                             proc_ctrl_block_t **tail);
+                              proc_ctrl_block_t **head,
+                              proc_ctrl_block_t **tail);
 
 static void remove_proc_from_queue(proc_ctrl_block_t *proc,
                                   proc_ctrl_block_t **head,
                                   proc_ctrl_block_t **tail);
 
 static void fail_blocked_procs(proc_ctrl_block_t *proc,
-                                   blocking_queue_t queue);
+                               blocking_queue_t queue);
 
 static void resolve_blocking(proc_ctrl_block_t *proc);
 
@@ -133,6 +133,8 @@ proc_ctrl_block_t* get_next_available_pcb(void) {
 
     memset(proc->signal_table, 0,
            sizeof(SIGNAL_TABLE_SIZE * sizeof(funcptr_args1)));
+
+    proc->signals_enabled = 1;
 
     proc->curr_state = PROC_STATE_STOPPED;
     proc->blocking_queue_name = NO_BLOCKER;

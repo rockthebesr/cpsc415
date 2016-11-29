@@ -36,7 +36,7 @@ syscall_request_id_t ctsw_contextswitch(proc_ctrl_block_t *proc) {
     // for getting rid of unused param compiler warning
     (void)kern_stack_ptr;
 
-    if (proc->signals_fired) {
+    if (proc->signals_fired && proc->signals_enabled) {
         call_highest_priority_signal(proc);
     }
 

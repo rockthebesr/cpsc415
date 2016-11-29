@@ -98,13 +98,17 @@ typedef struct proc_ctrl_block {
     proc_state_enum_t curr_state;
     struct proc_ctrl_block *next_proc;
     struct proc_ctrl_block *prev_proc;
+    int cpu_time;
+
     void *memory_region;
     void *esp;
     unsigned long *args;
     int ret;
+
     funcptr_args1 *signal_table;
     int signals_fired;
-    int cpu_time;
+    int signals_enabled;
+
     struct proc_ctrl_block *blocking_proc;
     blocking_queue_t blocking_queue_name;
     struct proc_ctrl_block *blocking_queue_heads[3];

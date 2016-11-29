@@ -37,6 +37,8 @@ int signal(int pid, int sig_no) {
         return SIGNAL_DNE;
     }
 
+    proc->signals_enabled = 0;
+
     int* stack_ptr = (int*)proc->esp;
 
     // push current context, 2nd argument of sigtramp, onto stack

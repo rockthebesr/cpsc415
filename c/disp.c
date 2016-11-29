@@ -333,7 +333,6 @@ static void dispatch_syscall_sigreturn(void) {
     currproc->esp = old_sp;
 
     // TODO retrieve saved return value
-    // Doc mentions that we should indicate here signals can be sent again, but:
-    // plan is to use bitmap to check what signal to load in get_next_proc(),
-    // then load highest priority, and clear the signal's bit there
+
+    currproc->signals_enabled = 1;
 }
