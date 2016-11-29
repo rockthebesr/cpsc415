@@ -301,14 +301,13 @@ static int dispatch_syscall_sighandler(void) {
     funcptr_args1 new_handler = (funcptr_args1)currproc->args[1];
     funcptr_args1 *old_handler = (funcptr_args1*)currproc->args[2];
 
-    // TODO error codes
     if (signal < 0 || signal >= SIGNAL_TABLE_SIZE) {
-        return -1;
+        return SYSHANDLER_INVALID_SIGNAL;
     }
 
     if (verify_usrptr(new_handler, sizeof(funcptr_args1)) != OK ||
         verify_usrptr(old_handler, sizeof(funcptr_args1*)) != OK) {
-        return -2;
+        return SYSHANDLER_INVALID_FUNCPTR;
     }
 
     *old_handler = currproc->signal_table[signal];

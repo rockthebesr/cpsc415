@@ -9,6 +9,7 @@ Called from outside:
 
 // Tests
 static void signaltest_basic_signal(void);
+static void signaltest_syshandler(void);
 static void signaltest_signal_priorities(void);
 
 // Helpers
@@ -26,7 +27,8 @@ static int g_signal_fired = 0;
  * Runs all signal tests.
  */
 void signal_run_all_tests(void) {
-    //signaltest_basic_signal();
+    signaltest_basic_signal();
+    signaltest_syshandler();
     signaltest_signal_priorities();
     DEBUG("Done all signal tests. Looping forever\n");
     while(1);
@@ -46,6 +48,32 @@ static void signaltest_basic_signal(void) {
     int result = syskill(pid, 0);
     ASSERT_EQUAL(result, 0);
     sysyield();
+}
+
+/**
+ * Tests error responses of syshandler, and all other basics
+ */
+static void signaltest_syshandler(void) {
+    funcptr_args1 oldHandler;
+
+    // error codes
+    ASSERT_EQUAL(syssighandler(-1, &lowPri, &oldHandler),
+                 SYSHANDLER_INVALID_SIGNAL);
+    ASSERT_EQUAL(syssighandler(32, &lowPri, &oldHandler),
+                 SYSHANDLER_INVALID_SIGNAL);
+    ASSERT_EQUAL(syssighandler(0, &lowPri, (funcptr_args1)NULL),
+                 SYSHANDLER_INVALID_FUNCPTR);
+    ASSERT_EQUAL(syssighandler(0, (funcptr_args1)NULL, &oldHandler),
+                 SYSHANDLER_INVALID_FUNCPTR);
+
+    // change signal handlers, get back old ones
+    setup_signal_handler(&lowPri);
+    ASSERT_EQUAL(syssighandler(0, &highPri, &oldHandler), 0);
+    ASSERT_EQUAL(oldHandler, lowPri);
+    ASSERT_EQUAL(syssighandler(31, &highPri, &oldHandler), 0);
+    ASSERT_EQUAL(oldHandler, NULL);
+    ASSERT_EQUAL(syssighandler(31, &lowPri, &oldHandler), 0);
+    ASSERT_EQUAL(oldHandler, highPri);
 }
 
 /**
@@ -118,19 +146,16 @@ static void basic_signal_handler(void* cntx) {
 }
 
 static void lowPri(void) {
-    kprintf("fired\n");
     ASSERT_EQUAL(g_signal_fired, 0xBEEFBEEF);
     g_signal_fired = 0xCAFECAFE;
 }
 
 static void mediumPri(void) {
-    kprintf("fired\n");
     ASSERT_EQUAL(g_signal_fired, 0xDEADBEEF);
     g_signal_fired = 0xBEEFBEEF;
 }
 
 static void highPri(void) {
-    kprintf("fired\n");
     ASSERT_EQUAL(g_signal_fired, 0);
     g_signal_fired = 0xDEADBEEF;
 }

@@ -149,6 +149,8 @@ void dispatch(funcptr root_proc);
 #define SYSKILL_TARGET_DNE -712
 #define SYSKILL_INVALID_SIGNAL -651
 #define SYSWAIT_SIGNALLED -2
+#define SYSHANDLER_INVALID_SIGNAL -1
+#define SYSHANDLER_INVALID_FUNCPTR -2
 
 /* ctsw */
 void ctsw_init_evec(void);

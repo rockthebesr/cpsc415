@@ -211,6 +211,7 @@ int set_proc_signal(proc_ctrl_block_t *proc, int signal) {
     if (proc->signal_table[signal]) {
         proc->signals_fired |= (1 << signal);
 
+        // TODO a3 doc has complex discussion of signalling blocked procs
         if (proc->curr_state == PROC_STATE_BLOCKED) {
             resolve_blocking(proc);
         }
