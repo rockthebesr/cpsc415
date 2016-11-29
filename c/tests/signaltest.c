@@ -17,9 +17,9 @@ static void setup_signal_handler(funcptr_args1 newhandler);
 static void basic_signal_handler(void* cntx);
 static void basic_test_func(void);
 static void test_priorities(void);
-static void lowPri(void);
-static void mediumPri(void);
-static void highPri(void);
+static void lowPri(void* cntx);
+static void mediumPri(void* cntx);
+static void highPri(void* cntx);
 
 static int g_signal_fired = 0;
 
@@ -61,7 +61,7 @@ static void signaltest_syshandler(void) {
                  SYSHANDLER_INVALID_SIGNAL);
     ASSERT_EQUAL(syssighandler(32, &lowPri, &oldHandler),
                  SYSHANDLER_INVALID_SIGNAL);
-    ASSERT_EQUAL(syssighandler(0, &lowPri, (funcptr_args1)NULL),
+    ASSERT_EQUAL(syssighandler(0, &lowPri, NULL),
                  SYSHANDLER_INVALID_FUNCPTR);
     ASSERT_EQUAL(syssighandler(0, (funcptr_args1)NULL, &oldHandler),
                  SYSHANDLER_INVALID_FUNCPTR);
@@ -115,6 +115,7 @@ static void basic_test_func(void) {
     // check we can run syscalls after signal handling
     ASSERT(sysgetpid() > 1);
     sysstop();
+    ASSERT(0);
 }
 
 
@@ -145,17 +146,17 @@ static void basic_signal_handler(void* cntx) {
     g_signal_fired = 1;
 }
 
-static void lowPri(void) {
+static void lowPri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0xBEEFBEEF);
     g_signal_fired = 0xCAFECAFE;
 }
 
-static void mediumPri(void) {
+static void mediumPri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0xDEADBEEF);
     g_signal_fired = 0xBEEFBEEF;
 }
 
-static void highPri(void) {
+static void highPri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0);
     g_signal_fired = 0xDEADBEEF;
 }

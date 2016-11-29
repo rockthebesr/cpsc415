@@ -41,6 +41,10 @@ int signal(int pid, int sig_no) {
 
     int* stack_ptr = (int*)proc->esp;
 
+    // save return value
+    stack_ptr = (int*)(((int)stack_ptr) - sizeof(int));
+    *stack_ptr = proc->ret;
+
     // push current context, 2nd argument of sigtramp, onto stack
     stack_ptr -= 1;
     *stack_ptr = (int)proc->esp;

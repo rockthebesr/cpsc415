@@ -329,9 +329,9 @@ static void dispatch_syscall_sigreturn(void) {
         return;
     }
 
+    // restore saved return value
+    currproc->ret = *(int*)(((int)old_sp) - sizeof(int));
+
     currproc->esp = old_sp;
-
-    // TODO retrieve saved return value
-
     currproc->signals_enabled = 1;
 }
