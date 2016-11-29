@@ -168,7 +168,10 @@ static void dispatch_syscall_wait(void) {
     currproc->curr_state = PROC_STATE_BLOCKED;
     add_proc_to_blocking_queue(currproc, proc_to_wait_on, WAITING);
 
-    currproc->ret = SYSWAIT_SIGNALLED;
+    // setup all blocked procs' return values to assume
+    // the target proc is eventually killed before resolution
+    currproc->ret = 0;
+
     currproc = get_next_proc();
 }
 
@@ -212,9 +215,14 @@ static void dispatch_syscall_send(void) {
     currproc->ret = send(currproc, destproc, buffer, len);
     if (currproc->ret == SYSMSG_BLOCKED) {
         currproc->curr_state = PROC_STATE_BLOCKED;
+
+        // setup all blocked procs' return values to assume
+        // the target proc is eventually killed before resolution
+        currproc->ret = SYSPID_DNE;
+
         currproc = get_next_proc();
     }
-    
+
     return;
 }
 

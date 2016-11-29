@@ -151,6 +151,7 @@ void dispatch(funcptr root_proc);
 #define SYSWAIT_SIGNALLED -2
 #define SYSHANDLER_INVALID_SIGNAL -1
 #define SYSHANDLER_INVALID_FUNCPTR -2
+#define PROC_SIGNALLED -362
 
 /* ctsw */
 void ctsw_init_evec(void);

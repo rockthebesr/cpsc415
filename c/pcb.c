@@ -55,8 +55,8 @@ static void remove_proc_from_queue(proc_ctrl_block_t *proc,
                                   proc_ctrl_block_t **head,
                                   proc_ctrl_block_t **tail);
 
-static void fail_blocked_procs(proc_ctrl_block_t *proc,
-                               blocking_queue_t queue);
+static void notify_blocked_procs(proc_ctrl_block_t *proc,
+                                 blocking_queue_t queue);
 
 static void resolve_blocking(proc_ctrl_block_t *proc);
 
@@ -211,9 +211,9 @@ int set_proc_signal(proc_ctrl_block_t *proc, int signal) {
     if (proc->signal_table[signal]) {
         proc->signals_fired |= (1 << signal);
 
-        // TODO a3 doc has complex discussion of signalling blocked procs
         if (proc->curr_state == PROC_STATE_BLOCKED) {
             resolve_blocking(proc);
+            add_pcb_to_queue(proc, PROC_STATE_READY);
         }
     }
 
@@ -274,9 +274,9 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
     kfree(proc->signal_table);
 
     // all blocked procs on the msg queues must be notified
-    fail_blocked_procs(proc, SENDER);
-    fail_blocked_procs(proc, RECEIVER);
-    fail_blocked_procs(proc, WAITING);
+    notify_blocked_procs(proc, SENDER);
+    notify_blocked_procs(proc, RECEIVER);
+    notify_blocked_procs(proc, WAITING);
 
     if (proc->blocking_queue_name != NO_BLOCKER) {
         resolve_blocking(proc);
@@ -286,21 +286,30 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
 }
 
 /**
- * Handle's a proc's premature end to being unblocked
+ * Handle's a proc's premature end to being unblocked.
+ * Assumes only called on cleanup or signal
  * @param proc - the process to unblock
  */
 static void resolve_blocking(proc_ctrl_block_t *proc) {
     ASSERT(proc != NULL && proc->blocking_queue_name != NO_BLOCKER);
     ASSERT_EQUAL(proc->curr_state, PROC_STATE_BLOCKED);
 
+    // remove proc from any blocking queues
     if (proc->blocking_queue_name == SLEEP) {
         wake(proc);
     } else if (proc->blocking_proc && proc->blocking_proc != proc) {
         // proc->blocking_proc == proc indicates proc called recv_any
         int in_queue = remove_proc_from_blocking_queue(proc, proc->blocking_proc,
-                                                 proc->blocking_queue_name);
+                                                       proc->blocking_queue_name);
         ASSERT_EQUAL(in_queue, 1);
-        proc->ret = 0;
+    }
+
+    // determine return code if proc was signalled. If cleanup, no effect
+    if (proc->blocking_queue_name == SENDER ||
+        proc->blocking_queue_name == RECEIVER) {
+        proc->ret = PROC_SIGNALLED;
+    } else if(proc->blocking_queue_name == WAITING) {
+        proc->ret = SYSWAIT_SIGNALLED;
     }
 }
 
@@ -310,8 +319,8 @@ static void resolve_blocking(proc_ctrl_block_t *proc) {
  * @param proc - the owner of the message queue
  * @param queue - the particular message queue to flush
  */
-static void fail_blocked_procs(proc_ctrl_block_t *proc,
-                                   blocking_queue_t queue) {
+static void notify_blocked_procs(proc_ctrl_block_t *proc,
+                                 blocking_queue_t queue) {
     ASSERT(proc != NULL);
     int ret;
     proc_ctrl_block_t *curr = proc->blocking_queue_heads[queue];
@@ -320,9 +329,7 @@ static void fail_blocked_procs(proc_ctrl_block_t *proc,
         ret = remove_proc_from_blocking_queue(curr, proc, queue);
         ASSERT_EQUAL(ret, 1);
 
-        curr->ret = SYSPID_DNE;
         add_pcb_to_queue(curr, PROC_STATE_READY);
-
         curr = proc->blocking_queue_heads[queue];
     }
 }
