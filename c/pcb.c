@@ -18,6 +18,7 @@ Accessible through pcb.h:
 
   get_all_proc_info() - fills a list of all procs's pids, statuses, and cpuTimes
   set_proc_signal() - marks a signal for delivery
+  call_highest_priority_signal() - delivers highest priority signal to process
 
   print_pcb_queue() - prints all blocks in particular queue, testing only
 
@@ -204,13 +205,37 @@ int set_proc_signal(proc_ctrl_block_t *proc, int signal) {
         return SYSKILL_INVALID_SIGNAL;
     }
 
-    proc->signals_fired |= (1 << signal);
+    // NULL signal handler indicates to ignore signal
+    if (proc->signal_table[signal]) {
+        proc->signals_fired |= (1 << signal);
 
-    if (proc->curr_state == PROC_STATE_BLOCKED) {
-        resolve_blocking(proc);
+        if (proc->curr_state == PROC_STATE_BLOCKED) {
+            resolve_blocking(proc);
+        }
     }
 
     return 0;
+}
+
+/**
+ * delivers highest priority signal to process
+ * @param proc - process to deliver a waiting signal to
+ */
+void call_highest_priority_signal(proc_ctrl_block_t *proc) {
+    ASSERT(proc->signals_fired != 0);
+
+    // find highest priority signal. Higher place in table -> higher priority
+    int signal_num = SIGNAL_TABLE_SIZE - 1;
+    int signal_bit = 1 << signal_num;
+    while ((proc->signals_fired & signal_bit) == 0) {
+        signal_num--;
+        signal_bit = signal_bit >> 1;
+    }
+
+    // clear signal
+    proc->signals_fired &= ~signal_bit;
+
+    signal(proc->pid, signal_num);
 }
 
 /**

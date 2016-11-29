@@ -150,7 +150,6 @@ void dispatch(funcptr root_proc);
 void ctsw_init_evec(void);
 syscall_request_id_t ctsw_contextswitch(proc_ctrl_block_t *proc);
 
-
 /* syscall */
 typedef struct struct_ps {
   int pid[PCB_TABLE_SIZE];
@@ -199,6 +198,7 @@ typedef struct context_frame {
 extern void init_idle_proc(proc_ctrl_block_t *idle_proc);
 
 extern int create(funcptr func, int stack);
+extern void setup_context_frame(context_frame_t *cf, funcptr func);
 
 extern int send(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
                 void *buffer, unsigned long len);
@@ -214,6 +214,7 @@ extern void wake(proc_ctrl_block_t *proc);
 extern void tick(void);
 
 extern void sigtramp(funcptr_args1 handler, void *cntx);
+extern int signal(int pid, int sig_no);
 
 /* user programs */
 extern void root(void);

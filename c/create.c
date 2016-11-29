@@ -2,7 +2,7 @@
 
 Called from outside:
     create() - creates a new process, pushes it onto the ready queue
-
+    setup_context_frame() - sets a newly created process's context up
     init_idle_proc() - initializes idle_proc, which runs if no procs are ready
 */
 
@@ -15,7 +15,6 @@ Called from outside:
 #define IDLE_PROC_STACK_SIZE 1024
 
 static void idleproc(void);
-static void setup_context_frame(context_frame_t *cf, funcptr func);
 
 /**
  * Creates new process,
@@ -112,7 +111,7 @@ static void idleproc(void) {
  * @param cf - context frame of the newly created process
  * @param func - start of the process code
  */
-static void setup_context_frame(context_frame_t *cf, funcptr func) {
+void setup_context_frame(context_frame_t *cf, funcptr func) {
     // set all registers to 0xA5, to aid in debugging. No functionality effect.
     memset(cf, 0xA5, sizeof(context_frame_t));
 

@@ -301,6 +301,7 @@ static int dispatch_syscall_sighandler(void) {
     funcptr_args1 new_handler = (funcptr_args1)currproc->args[1];
     funcptr_args1 *old_handler = (funcptr_args1*)currproc->args[2];
 
+    // TODO error codes
     if (signal < 0 || signal >= SIGNAL_TABLE_SIZE) {
         return -1;
     }
@@ -321,8 +322,13 @@ static int dispatch_syscall_sighandler(void) {
 static void dispatch_syscall_sigreturn(void) {
     void *old_sp = (void*)currproc->args[0];
 
-    // despite this being a syscall, we set old_sp, so it should never be faulty
-    ASSERT_EQUAL(verify_usrptr(old_sp, sizeof(void*)), OK);
+    // it should only be faulty if the user modifies their stack
+    // not able to return to original state at this point, so kill proc
+    if (verify_usrptr(old_sp, sizeof(void*)) != OK) {
+        cleanup_proc(currproc);
+        currproc = get_next_proc();
+        return;
+    }
 
     currproc->esp = old_sp;
 

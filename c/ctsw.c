@@ -9,6 +9,7 @@ Further details can be found in the documentation above the function headers.
 */
 
 #include <xeroskernel.h>
+#include <pcb.h>
 
 void _timer_entry_point(void);
 void _syscall_entry_point(void);
@@ -34,6 +35,11 @@ void ctsw_init_evec(void) {
 syscall_request_id_t ctsw_contextswitch(proc_ctrl_block_t *proc) {
     // for getting rid of unused param compiler warning
     (void)kern_stack_ptr;
+
+    if (proc->signals_fired) {
+        call_highest_priority_signal(proc);
+    }
+
     context_frame_t *cf;
 
     ESP = proc->esp;

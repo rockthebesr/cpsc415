@@ -6,6 +6,7 @@
 #define PCB_H
 
 #define SIGNAL_TABLE_SIZE 32
+#define SIGNAL_DNE -2
 
 // Kernel PCB structures defined in pcb.c
 extern proc_ctrl_block_t g_pcb_table[PCB_TABLE_SIZE];
@@ -34,6 +35,7 @@ proc_ctrl_block_t* get_idleproc(void);
 
 int get_all_proc_info(processStatuses *ps);
 int set_proc_signal(proc_ctrl_block_t *proc, int signal);
+void call_highest_priority_signal(proc_ctrl_block_t *proc);
 
 void cleanup_proc(proc_ctrl_block_t *proc);
 
