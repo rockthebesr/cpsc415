@@ -50,6 +50,8 @@ void syscall_run_all_tests(void) {
     test_syskill();
 
     test_sysputs();
+
+    //TODO syswait tests
     
     kprintf("Done syscall_run_all_tests, looping forever.\n");
     while(1);
