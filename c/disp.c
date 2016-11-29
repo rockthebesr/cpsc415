@@ -259,6 +259,11 @@ static void dispatch_syscall_recv(void) {
 
     if (currproc->ret == SYSMSG_BLOCKED) {
         currproc->curr_state = PROC_STATE_BLOCKED;
+
+        // setup all blocked procs' return values to assume
+        // the target proc is eventually killed before resolution
+        currproc->ret = SYSPID_DNE;
+
         currproc = get_next_proc();
     }
 }

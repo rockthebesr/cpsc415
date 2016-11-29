@@ -10,6 +10,7 @@ Called from outside:
 #include <xeroslib.h>
 
 #define MSGTEST_EXPECTED_NUM   0x1337F00D
+#define STOP_SIGNAL 17
 
 static void msgtest_basic_recver(void);
 static void msgtest_basic_recver_any(void);
@@ -28,6 +29,8 @@ static void msgtest10_recv_from_killed_proc(void);
 static void msgtest11_sendbuf(void);
 
 static int syskill_wrapper(int pid);
+static void setup_stop_signal_handler(void);
+static void msgtest_kill_itself(void);
 
 static int g_recv_done_flag;
 static int g_kill_this_pid;
@@ -39,11 +42,11 @@ void msg_run_all_tests(void) {
     msgtest03_recv_any_then_send();
     msgtest04_recv_any_queue();
     msgtest05_send_bad_params();
-    //msgtest06_recv_bad_params();
-    //msgtest07_recv_any_queue_kill();
+    msgtest06_recv_bad_params();
+    msgtest07_recv_any_queue_kill();
     msgtest08_recv_out_of_order();
-    //    msgtest09_send_to_killed_proc();
-    //msgtest10_recv_from_killed_proc();
+    msgtest09_send_to_killed_proc();
+    msgtest10_recv_from_killed_proc();
     msgtest11_sendbuf();
     
     kprintf("Done msg_run_all_tests, looping forever.\n");
@@ -54,12 +57,20 @@ void msg_run_all_tests(void) {
  * Sets up termination signal handler, calls signal on proc
  */
 static int syskill_wrapper(int pid) {
-    (void)pid;
-    // TODO setup handler to systop
-    return syskill(pid, 31);
+    return syskill(pid, STOP_SIGNAL);
+}
+
+/**
+ * Helper to setup sysstop as signal handler, to allow for proc killing
+ */
+static void setup_stop_signal_handler(void) {
+    funcptr_args1 oldHandler;
+    ASSERT_EQUAL(syssighandler(STOP_SIGNAL,
+                               (funcptr_args1)&sysstop, &oldHandler), 0)
 }
 
 static void msgtest_basic_recver(void) {
+    setup_stop_signal_handler();
     unsigned long num = 0xDEADBEEF;
     int pid = 33;
     int result = sysrecv(&pid, &num);
@@ -75,12 +86,16 @@ static void msgtest_basic_recver(void) {
 static void msgtest_basic_sender(void) {
     int pid = 33;
     int mypid = sysgetpid();
-    
+    setup_stop_signal_handler();
+
     int result = syssend(pid, (unsigned long)mypid);
     ASSERT_EQUAL(result, SYSPID_OK);
 }
 
 static void msgtest_killer(void) {
+    setup_stop_signal_handler();
+    sysyield();
+
     syskill_wrapper(g_kill_this_pid);
 }
 
@@ -217,6 +232,7 @@ static void msgtest06_recv_bad_params(void) {
     unsigned long num = 0xDEADBEEF;
     int our_pid = sysgetpid();
     int another_pid = syscreate(&msgtest_killer, DEFAULT_STACK_SIZE);
+    sysyield();
 
     // basic recv failures
     result = sysrecv(&our_pid, &num);
@@ -325,11 +341,12 @@ static void msgtest08_recv_out_of_order(void) {
 
 static void msgtest09_send_to_killed_proc(void) {
     int result;
-    
+
     syscreate(&msgtest_killer, DEFAULT_STACK_SIZE);
-    g_kill_this_pid = syscreate(&msgtest_basic_recver, DEFAULT_STACK_SIZE);
+    g_kill_this_pid = syscreate(&msgtest_kill_itself, DEFAULT_STACK_SIZE);
+    sysyield();
     result = syssend(g_kill_this_pid, MSGTEST_EXPECTED_NUM);
-    
+
     ASSERT_EQUAL(result, SYSPID_DNE);
     DEBUG("Result: %d\n", result);
 }
@@ -340,12 +357,21 @@ static void msgtest10_recv_from_killed_proc(void) {
     unsigned long num = 0xDEADBEEF;
     
     syscreate(&msgtest_killer, DEFAULT_STACK_SIZE);
-    g_kill_this_pid = syscreate(&msgtest_basic_sender, DEFAULT_STACK_SIZE);
+    g_kill_this_pid = syscreate(&msgtest_kill_itself, DEFAULT_STACK_SIZE);
+    sysyield();
     pid = g_kill_this_pid;
     result = sysrecv(&pid, &num);
     
     ASSERT_EQUAL(result, SYSPID_DNE);
     DEBUG("Result: %d\n", result);
+}
+
+static void msgtest_kill_itself(void) {
+    setup_stop_signal_handler();
+    sysyield();
+
+    syskill_wrapper(sysgetpid());
+    ASSERT(0);
 }
 
 static void msgtest_recvbuf_proc(void) {
