@@ -135,6 +135,11 @@ typedef enum {
     SYSCALL_CPUTIMES,
     SYSCALL_SIGHANDLER,
     SYSCALL_SIGRETURN,
+    SYSCALL_OPEN,
+    SYSCALL_CLOSE,
+    SYSCALL_WRITE,
+    SYSCALL_READ,
+    SYSCALL_IOCTL
 } syscall_request_id_t;
 
 void dispinit(void);
@@ -180,6 +185,11 @@ extern int sysgetcputimes(processStatuses *ps);
 extern int syssighandler(int signal, funcptr_args1 newhandler,
                          funcptr_args1 *oldHandler);
 extern void syssigreturn(void *old_sp);
+extern int sysopen(int device_no);
+extern int sysclose(int fd);
+extern int syswrite(int fd, void *buf, int buflen);
+extern int sysread(int fd, void *buf, int buflen);
+extern int sysioctl(int fd, unsigned long command, ...);
 
 typedef struct context_frame {
     unsigned long edi;

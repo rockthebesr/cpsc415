@@ -25,6 +25,11 @@ static void dispatch_syscall_sleep(void);
 static int dispatch_syscall_getcputimes(void);
 static int dispatch_syscall_sighandler(void);
 static void dispatch_syscall_sigreturn(void);
+static int dispatch_syscall_open(void);
+static int dispatch_syscall_close(void);
+static int dispatch_syscall_write(void);
+static int dispatch_syscall_read(void);
+static int dispatch_syscall_ioctl(void);
 
 
 static proc_ctrl_block_t *currproc;
@@ -109,6 +114,26 @@ void dispatch(funcptr root_proc) {
 
         case SYSCALL_SIGRETURN:
             dispatch_syscall_sigreturn();
+            break;
+        
+        case SYSCALL_OPEN:
+            dispatch_syscall_open();
+            break;
+            
+        case SYSCALL_CLOSE:
+            dispatch_syscall_close();
+            break;
+            
+        case SYSCALL_WRITE:
+            dispatch_syscall_write();
+            break;
+        
+        case SYSCALL_READ:
+            dispatch_syscall_read();
+            break;
+        
+        case SYSCALL_IOCTL:
+            dispatch_syscall_ioctl();
             break;
 
         default:
@@ -347,4 +372,44 @@ static void dispatch_syscall_sigreturn(void) {
 
     currproc->esp = old_sp;
     currproc->signals_enabled = 1;
+}
+
+/**
+ * Handler for sysopen
+ */
+static int dispatch_syscall_open(void) {
+    // TODO: Implement me!
+    return -1;
+}
+
+/**
+ * Handler for sysclose
+ */
+static int dispatch_syscall_close(void) {
+    // TODO: Implement me!
+    return -1;
+}
+
+/**
+ * Handler for syswrite
+ */
+static int dispatch_syscall_write(void) {
+    // TODO: Implement me!
+    return -1;
+}
+
+/**
+ * Handler for sysread
+ */
+static int dispatch_syscall_read(void) {
+    // TODO: Implement me!
+    return -1;
+}
+
+/**
+ * Handler for sysioctl
+ */
+static int dispatch_syscall_ioctl(void) {
+    // TODO: Implement me!
+    return -1;
 }

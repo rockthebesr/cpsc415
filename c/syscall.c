@@ -197,6 +197,60 @@ void syssigreturn(void *old_sp) {
     ASSERT(0);
 }
 
+/**
+ * Open a device.
+ * @param device_no - the major device number
+ * @return valid fd on success, -1 on failure
+ */
+int sysopen(int device_no) {
+    return syscall1(SYSCALL_OPEN, (unsigned long)device_no);
+}
+
+/**
+ * Close a file descriptor.
+ * @param fd - file descriptor
+ * @return 0 on success, -1 on failure
+ */
+int sysclose(int fd) {
+    return syscall1(SYSCALL_CLOSE, (unsigned long)fd);
+}
+
+/**
+ * Write to a file descriptor
+ * @param fd - file descriptor
+ * @param buf - buffer to write
+ * @param buflen - length of buf
+ * @return 0 on success, -1 on failure
+ */
+int syswrite(int fd, void *buf, int buflen) {
+    return syscall3(SYSCALL_WRITE, (unsigned long)fd, (unsigned long)buf,
+        (unsigned long)buflen);
+}
+
+/**
+ * Read from a file descriptor
+ * @param fd - file descriptor
+ * @param buf - buffer to store read contents
+ * @param buflen - length of buf
+ * @return number of bytes read, or -1 on failure. Number of bytes may be
+ *         less than buflen
+ */
+int sysread(int fd, void *buf, int buflen) {
+    return syscall3(SYSCALL_READ, (unsigned long)fd, (unsigned long)buf,
+        (unsigned long)buflen);
+}
+
+/**
+ * Execute special control command.
+ * @param fd - file descriptor
+ * @param command - control command ID
+ * @param ... - command ID specific variables
+ * @return 0 on success, -1 on failure
+ */
+int sysioctl(int fd, unsigned long command, ...) {
+    // TODO: Implement me!
+    return -1;
+}
 
 /*****************************************************************************
  * general syscallX functions which prepares the stack for a syscall
