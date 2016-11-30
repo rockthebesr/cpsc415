@@ -24,6 +24,7 @@ static void low_pri(void* cntx);
 static void medium_pri(void* cntx);
 static void high_pri(void* cntx);
 static void nop_handler(void* cntx);
+static void useless_func(void);
 
 static int g_signal_fired = 0;
 
@@ -35,9 +36,6 @@ void signal_run_all_tests(void) {
     signaltest_syshandler();
     signaltest_signal_priorities();
     signaltest_signal_blocked();
-    // TODO should try to test signals cant interrupt each other
-    // TODO try syscalls in signal handlers
-
     DEBUG("Done all signal tests. Looping forever\n");
     while(1);
 }
@@ -126,24 +124,6 @@ static void signaltest_signal_blocked(void) {
     syskill(pid, 0);
 }
 
-static void test_blocked(void) {
-    setup_signal_handler(&nop_handler);
-    int pid = syscreate(&dummy_proc, DEFAULT_STACK_SIZE);
-    unsigned long num = 0xA5A5A5A5;
-
-    // test send, recv, recv_any
-    ASSERT_EQUAL(syssend(pid, num), PROC_SIGNALLED);
-    ASSERT_EQUAL(sysrecv(&pid, &num), PROC_SIGNALLED);
-    pid = 0;
-    ASSERT_EQUAL(sysrecv(&pid, &num), PROC_SIGNALLED);
-}
-
-static void dummy_proc(void) {
-    while(1) {
-        sysyield();
-    }
-}
-
 /**
  * Simple helper to set up newhandler as the lowest priority signal handler
  */
@@ -188,6 +168,24 @@ static void test_priorities(void) {
     ASSERT_EQUAL(g_signal_fired, 0xCAFECAFE);
 }
 
+static void test_blocked(void) {
+    setup_signal_handler(&nop_handler);
+    int pid = syscreate(&dummy_proc, DEFAULT_STACK_SIZE);
+    unsigned long num = 0xA5A5A5A5;
+
+    // test send, recv, recv_any
+    ASSERT_EQUAL(syssend(pid, num), PROC_SIGNALLED);
+    ASSERT_EQUAL(sysrecv(&pid, &num), PROC_SIGNALLED);
+    pid = 0;
+    ASSERT_EQUAL(sysrecv(&pid, &num), PROC_SIGNALLED);
+}
+
+static void dummy_proc(void) {
+    while(1) {
+        sysyield();
+    }
+}
+
 /* signal handlers */
 
 static void basic_signal_handler(void* cntx) {
@@ -212,5 +210,15 @@ static void high_pri(void* cntx) {
 
 static void nop_handler(void* cntx) {
     (void)cntx;
-    return;
+    // Do some garbage calls, to test we maintain the ret value on the stack
+    useless_func();
+    processStatuses ps;
+    int num_procs_before = sysgetcputimes(&ps);
+    ASSERT_EQUAL(syssend(12345, num_procs_before), SYSPID_DNE);
+    ASSERT(sysgetpid() >= 1);
+    sysyield();
+}
+
+static void useless_func(void) {
+    for (int i = 0; i < 50; i++);
 }
