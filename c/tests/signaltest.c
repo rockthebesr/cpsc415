@@ -11,15 +11,19 @@ Called from outside:
 static void signaltest_syskill(void);
 static void signaltest_syshandler(void);
 static void signaltest_signal_priorities(void);
+static void signaltest_signal_blocked(void);
 
 // Helpers
 static void setup_signal_handler(funcptr_args1 newhandler);
 static void basic_signal_handler(void* cntx);
 static void basic_test_func(void);
+static void test_blocked(void);
 static void test_priorities(void);
-static void lowPri(void* cntx);
-static void mediumPri(void* cntx);
-static void highPri(void* cntx);
+static void dummy_proc(void);
+static void low_pri(void* cntx);
+static void medium_pri(void* cntx);
+static void high_pri(void* cntx);
+static void nop_handler(void* cntx);
 
 static int g_signal_fired = 0;
 
@@ -30,9 +34,9 @@ void signal_run_all_tests(void) {
     signaltest_syskill();
     signaltest_syshandler();
     signaltest_signal_priorities();
-
-    // TODO blocked signal tests
-    // TODO add syskill error cases to syskill test
+    signaltest_signal_blocked();
+    // TODO should try to test signals cant interrupt each other
+    // TODO try syscalls in signal handlers
 
     DEBUG("Done all signal tests. Looping forever\n");
     while(1);
@@ -48,8 +52,17 @@ static void signaltest_syskill(void) {
     // setup signal handler in basic_test_func
     sysyield();
 
+    // syskill error cases
+    ASSERT_EQUAL(syskill(-1, 0), SYSKILL_TARGET_DNE);
+    ASSERT_EQUAL(syskill(9999, 0), SYSKILL_TARGET_DNE);
+    ASSERT_EQUAL(syskill(pid, -1), SYSKILL_INVALID_SIGNAL);
+    ASSERT_EQUAL(syskill(pid, 32), SYSKILL_INVALID_SIGNAL);
+
     // test signal works
-    int result = syskill(pid, 0);
+    int result = syskill(pid, 11);
+    ASSERT_EQUAL(result, 0);
+
+    result = syskill(pid, 0);
     ASSERT_EQUAL(result, 0);
     sysyield();
 }
@@ -61,23 +74,23 @@ static void signaltest_syshandler(void) {
     funcptr_args1 oldHandler;
 
     // error codes
-    ASSERT_EQUAL(syssighandler(-1, &lowPri, &oldHandler),
+    ASSERT_EQUAL(syssighandler(-1, &low_pri, &oldHandler),
                  SYSHANDLER_INVALID_SIGNAL);
-    ASSERT_EQUAL(syssighandler(32, &lowPri, &oldHandler),
+    ASSERT_EQUAL(syssighandler(32, &low_pri, &oldHandler),
                  SYSHANDLER_INVALID_SIGNAL);
-    ASSERT_EQUAL(syssighandler(0, &lowPri, NULL),
+    ASSERT_EQUAL(syssighandler(0, &low_pri, NULL),
                  SYSHANDLER_INVALID_FUNCPTR);
     ASSERT_EQUAL(syssighandler(0, (funcptr_args1)NULL, &oldHandler),
                  SYSHANDLER_INVALID_FUNCPTR);
 
     // change signal handlers, get back old ones
-    setup_signal_handler(&lowPri);
-    ASSERT_EQUAL(syssighandler(0, &highPri, &oldHandler), 0);
-    ASSERT_EQUAL(oldHandler, lowPri);
-    ASSERT_EQUAL(syssighandler(31, &highPri, &oldHandler), 0);
+    setup_signal_handler(&low_pri);
+    ASSERT_EQUAL(syssighandler(0, &high_pri, &oldHandler), 0);
+    ASSERT_EQUAL(oldHandler, low_pri);
+    ASSERT_EQUAL(syssighandler(31, &high_pri, &oldHandler), 0);
     ASSERT_EQUAL(oldHandler, NULL);
-    ASSERT_EQUAL(syssighandler(31, &lowPri, &oldHandler), 0);
-    ASSERT_EQUAL(oldHandler, highPri);
+    ASSERT_EQUAL(syssighandler(31, &low_pri, &oldHandler), 0);
+    ASSERT_EQUAL(oldHandler, high_pri);
 }
 
 /**
@@ -97,6 +110,38 @@ static void signaltest_signal_priorities(void) {
     result = syskill(pid, 31);
     ASSERT_EQUAL(result, 0);
     sysyield();
+}
+
+/**
+ * Signalling blocked procs should fail the syscall, return special code
+ */
+static void signaltest_signal_blocked(void) {
+    int pid = syscreate(&test_blocked, DEFAULT_STACK_SIZE);
+    sysyield();
+
+    syskill(pid, 0);
+    sysyield();
+    syskill(pid, 0);
+    sysyield();
+    syskill(pid, 0);
+}
+
+static void test_blocked(void) {
+    setup_signal_handler(&nop_handler);
+    int pid = syscreate(&dummy_proc, DEFAULT_STACK_SIZE);
+    unsigned long num = 0xA5A5A5A5;
+
+    // test send, recv, recv_any
+    ASSERT_EQUAL(syssend(pid, num), PROC_SIGNALLED);
+    ASSERT_EQUAL(sysrecv(&pid, &num), PROC_SIGNALLED);
+    pid = 0;
+    ASSERT_EQUAL(sysrecv(&pid, &num), PROC_SIGNALLED);
+}
+
+static void dummy_proc(void) {
+    while(1) {
+        sysyield();
+    }
 }
 
 /**
@@ -125,13 +170,13 @@ static void basic_test_func(void) {
 
 static void test_priorities(void) {
     g_signal_fired = 0;
-    setup_signal_handler(&lowPri);
+    setup_signal_handler(&low_pri);
 
     funcptr_args1 oldHandler;
-    int ret = syssighandler(31, &highPri, &oldHandler);
+    int ret = syssighandler(31, &high_pri, &oldHandler);
     ASSERT_EQUAL(ret, 0);
 
-    ret = syssighandler(15, &mediumPri, &oldHandler);
+    ret = syssighandler(15, &medium_pri, &oldHandler);
     ASSERT_EQUAL(ret, 0);
 
     // allow parent to call syskill
@@ -150,17 +195,22 @@ static void basic_signal_handler(void* cntx) {
     g_signal_fired = 1;
 }
 
-static void lowPri(void* cntx) {
+static void low_pri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0xBEEFBEEF);
     g_signal_fired = 0xCAFECAFE;
 }
 
-static void mediumPri(void* cntx) {
+static void medium_pri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0xDEADBEEF);
     g_signal_fired = 0xBEEFBEEF;
 }
 
-static void highPri(void* cntx) {
+static void high_pri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0);
     g_signal_fired = 0xDEADBEEF;
+}
+
+static void nop_handler(void* cntx) {
+    (void)cntx;
+    return;
 }

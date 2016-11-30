@@ -294,6 +294,25 @@ static void resolve_blocking(proc_ctrl_block_t *proc) {
     ASSERT(proc != NULL && proc->blocking_queue_name != NO_BLOCKER);
     ASSERT_EQUAL(proc->curr_state, PROC_STATE_BLOCKED);
 
+    // determine return code if proc was signalled. If cleanup, no effect
+    switch(proc->blocking_queue_name) {
+
+    case SLEEP:
+        break;
+
+    case RECEIVE_ANY:
+    case SENDER:
+    case RECEIVER:
+        proc->ret = PROC_SIGNALLED;
+        break;
+    case WAITING:
+        proc->ret = SYSWAIT_SIGNALLED;
+        break;
+
+    default:
+        ASSERT(0);
+    }
+
     int ret;
 
     // remove proc from any blocking queues
@@ -306,7 +325,6 @@ static void resolve_blocking(proc_ctrl_block_t *proc) {
     case RECEIVE_ANY:
         ASSERT_EQUAL(proc->blocking_proc, NULL);
         proc->blocking_queue_name = NO_BLOCKER;
-        proc->ret = PROC_SIGNALLED;
         break;
 
     case SENDER:
@@ -319,14 +337,6 @@ static void resolve_blocking(proc_ctrl_block_t *proc) {
 
     default:
         ASSERT(0);
-    }
-
-    // determine return code if proc was signalled. If cleanup, no effect
-    if (proc->blocking_queue_name == SENDER ||
-        proc->blocking_queue_name == RECEIVER) {
-        proc->ret = PROC_SIGNALLED;
-    } else if(proc->blocking_queue_name == WAITING) {
-        proc->ret = SYSWAIT_SIGNALLED;
     }
 }
 
