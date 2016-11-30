@@ -379,7 +379,7 @@ static void dispatch_syscall_sigreturn(void) {
  */
 static int dispatch_syscall_open(void) {
     // TODO: Implement me!
-    return -1;
+    return di_open();
 }
 
 /**
@@ -387,7 +387,7 @@ static int dispatch_syscall_open(void) {
  */
 static int dispatch_syscall_close(void) {
     // TODO: Implement me!
-    return -1;
+    return di_close();
 }
 
 /**
@@ -395,7 +395,7 @@ static int dispatch_syscall_close(void) {
  */
 static int dispatch_syscall_write(void) {
     // TODO: Implement me!
-    return -1;
+    return di_write();
 }
 
 /**
@@ -403,7 +403,7 @@ static int dispatch_syscall_write(void) {
  */
 static int dispatch_syscall_read(void) {
     // TODO: Implement me!
-    return -1;
+    return di_read();
 }
 
 /**
@@ -411,5 +411,5 @@ static int dispatch_syscall_read(void) {
  */
 static int dispatch_syscall_ioctl(void) {
     // TODO: Implement me!
-    return -1;
+    return di_ioctl();
 }

@@ -209,7 +209,14 @@ typedef struct context_frame {
     // Adding syscallargs to this struct allows us to avoid ugly pointer math
     // syscallargs takes no space.
     unsigned long syscallargs[];
-} context_frame_t;    
+} context_frame_t;
+
+/* disp calls for devices */
+extern int di_open(void);
+extern int di_close(void);
+extern int di_write(void);
+extern int di_read(void);
+extern int di_ioctl(void);
 
 /* kernel services */
 extern void init_idle_proc(proc_ctrl_block_t *idle_proc);
