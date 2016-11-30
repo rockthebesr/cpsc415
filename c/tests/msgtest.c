@@ -10,7 +10,6 @@ Called from outside:
 #include <xeroslib.h>
 
 #define MSGTEST_EXPECTED_NUM   0x1337F00D
-#define STOP_SIGNAL 17
 
 static void msgtest_basic_recver(void);
 static void msgtest_basic_recver_any(void);
@@ -29,7 +28,6 @@ static void msgtest10_recv_from_killed_proc(void);
 static void msgtest11_sendbuf(void);
 
 static int syskill_wrapper(int pid);
-static void setup_stop_signal_handler(void);
 static void msgtest_kill_itself(void);
 
 static int g_recv_done_flag;
@@ -54,23 +52,14 @@ void msg_run_all_tests(void) {
 }
 
 /**
- * Sets up termination signal handler, calls signal on proc
+ * Calls termination signal on proc
  */
 static int syskill_wrapper(int pid) {
     return syskill(pid, STOP_SIGNAL);
 }
 
-/**
- * Helper to setup sysstop as signal handler, to allow for proc killing
- */
-static void setup_stop_signal_handler(void) {
-    funcptr_args1 oldHandler;
-    ASSERT_EQUAL(syssighandler(STOP_SIGNAL,
-                               (funcptr_args1)&sysstop, &oldHandler), 0)
-}
-
 static void msgtest_basic_recver(void) {
-    setup_stop_signal_handler();
+    SETUP_STOP_SIGNAL_HANDLER();
     unsigned long num = 0xDEADBEEF;
     int pid = 33;
     int result = sysrecv(&pid, &num);
@@ -86,14 +75,14 @@ static void msgtest_basic_recver(void) {
 static void msgtest_basic_sender(void) {
     int pid = 33;
     int mypid = sysgetpid();
-    setup_stop_signal_handler();
+    SETUP_STOP_SIGNAL_HANDLER();
 
     int result = syssend(pid, (unsigned long)mypid);
     ASSERT_EQUAL(result, SYSPID_OK);
 }
 
 static void msgtest_killer(void) {
-    setup_stop_signal_handler();
+    SETUP_STOP_SIGNAL_HANDLER();
     sysyield();
 
     syskill_wrapper(g_kill_this_pid);
@@ -367,7 +356,7 @@ static void msgtest10_recv_from_killed_proc(void) {
 }
 
 static void msgtest_kill_itself(void) {
-    setup_stop_signal_handler();
+    SETUP_STOP_SIGNAL_HANDLER();
     sysyield();
 
     syskill_wrapper(sysgetpid());

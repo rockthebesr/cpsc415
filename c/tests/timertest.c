@@ -44,9 +44,9 @@ void timer_run_all_tests(void) {
     test_preemption();
     test_preemption2();
     test_rand_timesharing();
-    //test_sysgetcputimes();
+    test_sysgetcputimes();
     test_sleep1_simple();
-    //test_sleep2_killmid();
+    test_sleep2_killmid();
     test_sleep3_simultaneous_wake();
     test_idleproc();
 }
@@ -55,12 +55,10 @@ void timer_run_all_tests(void) {
 static int count = 0;
 
 /**
- * Sets up termination signal handler, calls signal on proc
+ * Calls termination signal on proc
  */
 static int syskill_wrapper(int pid) {
-    (void)pid;
-    // TODO setup handler to systop
-    return syskill(pid, 31);
+    return syskill(pid, STOP_SIGNAL);
 }
 
 /**
@@ -250,6 +248,7 @@ static void sleep5(void) {
 }
 
 static void sleep10(void) {
+    SETUP_STOP_SIGNAL_HANDLER();
     syssleep(10000);
     sysputs("Slept: 10000\n");
     count++;
@@ -328,6 +327,8 @@ static void test_sysgetcputimes(void) {
     // created then killed to ensure stopped procs aren't in ps
     int proc_pid_3 = syscreate(&cputimehelper, DEFAULT_STACK_SIZE);
     ASSERT(proc_pid_3 > 0);
+
+    sysyield();
     ASSERT_EQUAL(syskill_wrapper(proc_pid_3), 0);
 
     // call sysyield so created procs can run
@@ -373,6 +374,8 @@ static void test_sysgetcputimes(void) {
  * Helper for test_sysgetcputime
  */
 static void cputimehelper(void) {
+    SETUP_STOP_SIGNAL_HANDLER();
+    sysyield();
     BUSYWAIT();
     BUSYWAIT();
 }

@@ -17,7 +17,6 @@ static void syscalltest1_create_max_number_of_processes(void);
 static void syscalltest2_create_bad_params(void);
 static void syscalltest3_fibonacci_test(void);
 static void test_sysgetpid(void);
-static void test_syskill(void);
 static void test_sysputs(void);
 
 /**
@@ -29,7 +28,6 @@ static void syscall_fibonacci_test_func1(void);
 static void syscall_fibonacci_test_func2(void);
 static void syscall_fibonacci_test_func3(void);
 static void sysgetpid_proc(void);
-//static void syskill_proc(void);
 
 /**
  * Runs all syscall tests
@@ -46,8 +44,6 @@ void syscall_run_all_tests(void) {
     syscalltest2_create_bad_params();
     
     syscalltest3_fibonacci_test();
-
-    test_syskill();
 
     test_sysputs();
 
@@ -221,45 +217,6 @@ static void sysgetpid_proc(void) {
     next_test_pid++;
     return;
 }
-
-/**
- * tests all syskill() functionality
- */
-static void test_syskill(void) {
-    /*
-    kprintf("testing syskill()...\n");
-
-    // proc does not exist
-    ASSERT_EQUAL(syskill(-8), -1);
-    ASSERT_EQUAL(syskill(0), -1);
-    ASSERT_EQUAL(syskill(0xbeef), -1);
-
-    // proc cannot kill itself
-    ASSERT_EQUAL(syskill(sysgetpid()), -2);
-
-    int pids[4];
-    for (int i = 0; i < 4; i++) {
-        pids[i] = syscreate(&syskill_proc, DEFAULT_STACK_SIZE);
-    }
-
-    for (int i = 0; i < 4; i++) {
-        ASSERT_EQUAL(syskill(pids[i]), 0);
-    }
-
-    MASS_SYSYIELD();
-    */
-}
-
-/**
- * created by test_syskill()
-static void syskill_proc(void) {
-    // yield, so we have a chance to kill
-    sysyield();
-
-    // proc should be killed, we must never reach this
-    ASSERT(0);
-}
- */
 
 /**
  * Tests sysputs(). Output to be verified by user

@@ -8,7 +8,7 @@ Called from outside:
 #include <xeroskernel.h>
 
 // Tests
-static void signaltest_basic_signal(void);
+static void signaltest_syskill(void);
 static void signaltest_syshandler(void);
 static void signaltest_signal_priorities(void);
 
@@ -27,9 +27,13 @@ static int g_signal_fired = 0;
  * Runs all signal tests.
  */
 void signal_run_all_tests(void) {
-    signaltest_basic_signal();
+    signaltest_syskill();
     signaltest_syshandler();
     signaltest_signal_priorities();
+
+    // TODO blocked signal tests
+    // TODO add syskill error cases to syskill test
+
     DEBUG("Done all signal tests. Looping forever\n");
     while(1);
 }
@@ -37,7 +41,7 @@ void signal_run_all_tests(void) {
 /**
  * Tests that we can send a signal and return from it, no actions done
  */
-static void signaltest_basic_signal(void) {
+static void signaltest_syskill(void) {
     int pid = syscreate(&basic_test_func, DEFAULT_STACK_SIZE);
     ASSERT(pid > 0);
 
