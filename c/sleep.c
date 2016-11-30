@@ -49,6 +49,7 @@ void sleep(proc_ctrl_block_t *proc, unsigned int time) {
  */
 void wake(proc_ctrl_block_t *proc) {
     ASSERT(proc != NULL);
+    ASSERT_EQUAL(proc->blocking_proc, NULL);
     ASSERT_EQUAL(proc->blocking_queue_name, SLEEP);
 
     remove_from_sleeping_list(proc);

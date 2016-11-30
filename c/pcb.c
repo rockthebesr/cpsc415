@@ -294,14 +294,31 @@ static void resolve_blocking(proc_ctrl_block_t *proc) {
     ASSERT(proc != NULL && proc->blocking_queue_name != NO_BLOCKER);
     ASSERT_EQUAL(proc->curr_state, PROC_STATE_BLOCKED);
 
+    int ret;
+
     // remove proc from any blocking queues
-    if (proc->blocking_queue_name == SLEEP) {
+    switch(proc->blocking_queue_name) {
+
+    case SLEEP:
         wake(proc);
-    } else if (proc->blocking_proc && proc->blocking_proc != proc) {
-        // proc->blocking_proc == proc indicates proc called recv_any
-        int in_queue = remove_proc_from_blocking_queue(proc, proc->blocking_proc,
-                                                       proc->blocking_queue_name);
-        ASSERT_EQUAL(in_queue, 1);
+        break;
+
+    case RECEIVE_ANY:
+        ASSERT_EQUAL(proc->blocking_proc, NULL);
+        proc->blocking_queue_name = NO_BLOCKER;
+        proc->ret = PROC_SIGNALLED;
+        break;
+
+    case SENDER:
+    case RECEIVER:
+    case WAITING:
+        ret = remove_proc_from_blocking_queue(proc, proc->blocking_proc,
+                                              proc->blocking_queue_name);
+        ASSERT_EQUAL(ret, 1);
+        break;
+
+    default:
+        ASSERT(0);
     }
 
     // determine return code if proc was signalled. If cleanup, no effect
