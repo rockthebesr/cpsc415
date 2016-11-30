@@ -18,6 +18,7 @@ static void syscalltest2_create_bad_params(void);
 static void syscalltest3_fibonacci_test(void);
 static void test_sysgetpid(void);
 static void test_sysputs(void);
+static void test_syswait(void);
 
 /**
  * Helper functions for test cases
@@ -47,7 +48,7 @@ void syscall_run_all_tests(void) {
 
     test_sysputs();
 
-    //TODO syswait tests
+    test_syswait();
     
     kprintf("Done syscall_run_all_tests, looping forever.\n");
     while(1);
@@ -243,4 +244,15 @@ static void test_sysputs(void) {
     sysputs(str2);
 
     BUSYWAIT();
+}
+
+/**
+ * Tests syswait() basic functionality and error responses
+ */
+static void test_syswait(void) {
+    ASSERT_EQUAL(syswait(-1), SYSPID_DNE);
+    ASSERT_EQUAL(syswait(9000), SYSPID_DNE);
+
+    int pid = syscreate(&testfunc, DEFAULT_STACK_SIZE);
+    ASSERT_EQUAL(syswait(pid), 0);
 }

@@ -115,13 +115,11 @@ static void signaltest_signal_priorities(void) {
  */
 static void signaltest_signal_blocked(void) {
     int pid = syscreate(&test_blocked, DEFAULT_STACK_SIZE);
-    sysyield();
 
-    syskill(pid, 0);
-    sysyield();
-    syskill(pid, 0);
-    sysyield();
-    syskill(pid, 0);
+    for (int i = 0; i < 4; i++) {
+        sysyield();
+        syskill(pid, 0);
+    }
 }
 
 /**
@@ -172,6 +170,8 @@ static void test_blocked(void) {
     setup_signal_handler(&nop_handler);
     int pid = syscreate(&dummy_proc, DEFAULT_STACK_SIZE);
     unsigned long num = 0xA5A5A5A5;
+
+    ASSERT_EQUAL(syswait(pid), SYSWAIT_SIGNALLED);
 
     // test send, recv, recv_any
     ASSERT_EQUAL(syssend(pid, num), PROC_SIGNALLED);
