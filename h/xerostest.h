@@ -19,5 +19,6 @@ void copyinout_run_all_tests(void);
 void msg_run_all_tests(void);
 void timer_run_all_tests(void);
 void signal_run_all_tests(void);
+void dev_run_all_tests(void);
 
 #endif

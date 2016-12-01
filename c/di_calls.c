@@ -11,11 +11,22 @@ Further details can be found in the documentation above the function headers.
  */
 
 #include <xeroskernel.h>
+#include <kbd.h>
+
+// Device table
+static devsw_t g_device_table[NUM_DEVICES_ID_ENUMS];
+
+void di_init_devtable(void) {
+    kbd_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD], 1);
+    kbd_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD_NO_ECHO], 0);
+}
+
 
 /**
  * Handler for sysopen
  */
-int di_open(void) {
+int di_open(int device_no) {
+    DEBUG("device_no: %d\n", device_no);
     // TODO: Implement me!
     return -1;
 }
@@ -23,7 +34,8 @@ int di_open(void) {
 /**
  * Handler for sysclose
  */
-int di_close(void) {
+int di_close(int fd) {
+    DEBUG("fd: %d\n", fd);
     // TODO: Implement me!
     return -1;
 }
@@ -31,7 +43,8 @@ int di_close(void) {
 /**
  * Handler for syswrite
  */
-int di_write(void) {
+int di_write(int fd, void *buf, int buflen) {
+    DEBUG("fd: %d, buf: 0x%08x, buflen: %d\n", fd, buf, buflen);
     // TODO: Implement me!
     return -1;
 }
@@ -39,7 +52,8 @@ int di_write(void) {
 /**
  * Handler for sysread
  */
-int di_read(void) {
+int di_read(int fd, void *buf, int buflen) {
+    DEBUG("fd: %d, buf: 0x%08x, buflen: %d\n", fd, buf, buflen);
     // TODO: Implement me!
     return -1;
 }
@@ -48,6 +62,7 @@ int di_read(void) {
  * Handler for sysioctl
  */
 int di_ioctl(void) {
+    DEBUG("\n");
     // TODO: Implement me!
     return -1;
 }

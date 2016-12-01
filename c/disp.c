@@ -117,23 +117,23 @@ void dispatch(funcptr root_proc) {
             break;
         
         case SYSCALL_OPEN:
-            dispatch_syscall_open();
+            currproc->ret = dispatch_syscall_open();
             break;
             
         case SYSCALL_CLOSE:
-            dispatch_syscall_close();
+            currproc->ret = dispatch_syscall_close();
             break;
             
         case SYSCALL_WRITE:
-            dispatch_syscall_write();
+            currproc->ret = dispatch_syscall_write();
             break;
         
         case SYSCALL_READ:
-            dispatch_syscall_read();
+            currproc->ret = dispatch_syscall_read();
             break;
         
         case SYSCALL_IOCTL:
-            dispatch_syscall_ioctl();
+            currproc->ret = dispatch_syscall_ioctl();
             break;
 
         default:
@@ -378,32 +378,40 @@ static void dispatch_syscall_sigreturn(void) {
  * Handler for sysopen
  */
 static int dispatch_syscall_open(void) {
-    // TODO: Implement me!
-    return di_open();
+    return di_open((int)currproc->args[0]);
 }
 
 /**
  * Handler for sysclose
  */
 static int dispatch_syscall_close(void) {
-    // TODO: Implement me!
-    return di_close();
+    return di_close((int)currproc->args[0]);
 }
 
 /**
  * Handler for syswrite
  */
 static int dispatch_syscall_write(void) {
-    // TODO: Implement me!
-    return di_write();
+    int result = verify_usrptr((void*)currproc->args[1], sizeof(void*));
+    if (result != OK) {
+        return result;
+    }
+    
+    return di_write((int)currproc->args[0], (void*)currproc->args[1],
+        (int)currproc->args[2]);
 }
 
 /**
  * Handler for sysread
  */
 static int dispatch_syscall_read(void) {
-    // TODO: Implement me!
-    return di_read();
+    int result = verify_usrptr((void*)currproc->args[1], sizeof(void*));
+    if (result != OK) {
+        return result;
+    }
+    
+    return di_read((int)currproc->args[0], (void*)currproc->args[1],
+        (int)currproc->args[2]);
 }
 
 /**

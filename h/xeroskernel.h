@@ -73,10 +73,35 @@ void  kfree(void *ptr);
 void  kmem_dump_free_list(void);
 int kmem_get_free_list_length(void);
 
+/* Devices */
+typedef enum device_id_enum {
+    DEVICE_ID_KEYBOARD = 0,
+    DEVICE_ID_KEYBOARD_NO_ECHO,
+    NUM_DEVICES_ID_ENUMS
+} device_id_enum_t;
+
+typedef struct devsw {
+    int dvnum;
+    char dvname[20];
+    int (*dvinit)(void);
+    int (*dvread)(void *dvioblk, void *buf, int buflen);
+    int (*dvwrite)(void *dvioblk, void *buf, int buflen);
+    int (*dvioctl)(void *dvioblk, unsigned long command, ...);
+    // input available interrupt
+    int (*dviint)(void);
+    // output available interrupt
+    int (*dvoint)(void);
+    // device specific data (usually pointer to another struct)
+    void *dvioblk;
+} devsw_t;
+
+void di_init_devtable(void);
+
 /* Process Manager */
 
 // maximum number of processes
 #define PCB_TABLE_SIZE 32
+#define PCB_NUM_FDS 4
 
 typedef enum {
     PROC_STATE_READY = 0,
@@ -109,6 +134,8 @@ typedef struct proc_ctrl_block {
     funcptr_args1 *signal_table;
     int signals_fired;
     int signals_enabled;
+    
+    devsw_t *fd_table[PCB_NUM_FDS];
 
     struct proc_ctrl_block *blocking_proc;
     blocking_queue_t blocking_queue_name;
@@ -213,10 +240,11 @@ typedef struct context_frame {
 } context_frame_t;
 
 /* disp calls for devices */
-extern int di_open(void);
-extern int di_close(void);
-extern int di_write(void);
-extern int di_read(void);
+
+extern int di_open(int device_no);
+extern int di_close(int fd);
+extern int di_write(int fd, void *buf, int buflen);
+extern int di_read(int fd, void *buf, int buflen);
 extern int di_ioctl(void);
 
 /* kernel services */
