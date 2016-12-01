@@ -26,8 +26,13 @@ static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk);
 static int g_kbd_in_use = 0;
 
 static char keyboard_process_scancode(int data);
-#define KEYBOARD_STATE_SHIFT_FLAG (0x01)
-#define KEYBOARD_STATE_CTRL_FLAG (0x02)
+#define KEYBOARD_STATE_SHIFT_BIT 0
+#define KEYBOARD_STATE_CTRL_BIT 1
+#define KEYBOARD_STATE_CAPLOCK_BIT 2
+#define FLAG_BIT_CHECK(flag, bitNum) (0x01 & (flag >> bitNum))
+#define FLAG_BIT_SET(flag, bitNum) {flag |= (0x01 << bitNum);}
+#define FLAG_BIT_CLEAR(flag, bitNum) {flag &= ~(0x01 << bitNum);}
+#define FLAG_BIT_TOGGLE(flag, bitNum) {flag ^= (0x01 << bitNum);}
 static int g_keyboard_keystate_flag = 0;
 
 
@@ -278,10 +283,13 @@ static char keyboard_process_scancode(int data) {
     };
     
     char c = 0;
+    
     if (data < 0x54) {
-        if (g_keyboard_keystate_flag & KEYBOARD_STATE_CTRL_FLAG) {
+        if (FLAG_BIT_CHECK(g_keyboard_keystate_flag, KEYBOARD_STATE_CTRL_BIT)) {
             c = ctrl[data];
-        } else if (g_keyboard_keystate_flag & KEYBOARD_STATE_SHIFT_FLAG) {
+        } else if (FLAG_BIT_CHECK(g_keyboard_keystate_flag, KEYBOARD_STATE_SHIFT_BIT) ^
+            FLAG_BIT_CHECK(g_keyboard_keystate_flag, KEYBOARD_STATE_CAPLOCK_BIT)) {
+            // XOR in condition: Either SHIFT is pressed, or CAPLOCK is on
             c = upper[data];
         } else {
             c = lower[data];
@@ -293,18 +301,25 @@ static char keyboard_process_scancode(int data) {
             case 0x2A:
             case 0x36:
                 // shfit key pressed
-                g_keyboard_keystate_flag |= KEYBOARD_STATE_SHIFT_FLAG;
+                FLAG_BIT_SET(g_keyboard_keystate_flag, KEYBOARD_STATE_SHIFT_BIT);
                 break;
             case 0xAA:
             case 0xB6:
                 // shift key released
-                g_keyboard_keystate_flag &= ~KEYBOARD_STATE_SHIFT_FLAG;
+                FLAG_BIT_CLEAR(g_keyboard_keystate_flag, KEYBOARD_STATE_SHIFT_BIT);
                 break;
             case 0x1D:
-                g_keyboard_keystate_flag |= KEYBOARD_STATE_CTRL_FLAG;
+                // ctrl key pressed
+                FLAG_BIT_SET(g_keyboard_keystate_flag, KEYBOARD_STATE_CTRL_BIT);
                 break;
             case 0x9D:
-                g_keyboard_keystate_flag &= ~KEYBOARD_STATE_CTRL_FLAG;
+                // ctrl key released
+                FLAG_BIT_CLEAR(g_keyboard_keystate_flag, KEYBOARD_STATE_CTRL_BIT);
+                g_keyboard_keystate_flag &= ~KEYBOARD_STATE_CTRL_BIT;
+                break;
+            case 0x3A:
+                // caplock pressed
+                FLAG_BIT_TOGGLE(g_keyboard_keystate_flag, KEYBOARD_STATE_CAPLOCK_BIT);
                 break;
             default:
                 break;
