@@ -110,6 +110,9 @@ struct segtr {
 #define         TIMER_16BIT     0x30    /* r/w counter 16 bits, LSB first */
 #define         TIMER_BCD       0x01    /* count in BCD */
 
+/* Keyboard device */
+#define KEYBOARD_IRQ	1	/* IRQ of keyboard */
+void setEnabledKbd( int enable );
 
 /* Some helpful prototypes */
 void initPIT( int divisor );

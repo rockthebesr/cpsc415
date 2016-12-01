@@ -66,6 +66,7 @@ void initproc( void )				/* The beginning */
   //dispatch(&msg_run_all_tests);
   //dispatch(&timer_run_all_tests);
   //dispatch(&signal_run_all_tests);
+  setEnabledKbd(1);
   dispatch(&dev_run_all_tests);
 #else
   // enable pre-emption

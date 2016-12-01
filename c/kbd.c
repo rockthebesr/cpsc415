@@ -51,6 +51,9 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
 
 int kbd_init(void) {
     g_kbd_in_use = 0;
+    // Read data from the ports, in case some interrupts triggered in the past
+    inb(KEYBOARD_PORT_DATA);
+    inb(KEYBOARD_PORT_CONTROL);
     return 0;
 }
 

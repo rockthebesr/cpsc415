@@ -122,6 +122,17 @@ void initPIT( int divisor )
 
 
 /*------------------------------------------------------------------------
+ * setEnabledKbd - enable/disable the keyboard device
+ *------------------------------------------------------------------------
+ */
+void setEnabledKbd( int enable )
+{
+		// to enable, we need enable_irq(x, 0)
+		// to disable, we need enable_irq(x, 1)
+        enable_irq( KEYBOARD_IRQ, ( enable ? 0 : 1 ) );
+}
+
+/*------------------------------------------------------------------------
  * end_of_intr - signal EOI to rearm hardware interrupts
  *------------------------------------------------------------------------
  */

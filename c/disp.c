@@ -15,6 +15,7 @@ Further details can be found in the documentation above the function headers.
 
 /* Syscall dispatches */
 static void timer_handler(void);
+static void keyboard_handler(void);
 static int dispatch_syscall_create(void);
 static int dispatch_syscall_kill(void);
 static void dispatch_syscall_wait(void);
@@ -60,6 +61,10 @@ void dispatch(funcptr root_proc) {
 
         case TIMER_INT:
             timer_handler();
+            break;
+        
+        case KEYBOARD_INT:
+            keyboard_handler();
             break;
 
         case SYSCALL_CREATE:
@@ -314,6 +319,21 @@ static void timer_handler(void) {
     tick();
     add_pcb_to_queue(currproc, PROC_STATE_READY);
     currproc = get_next_proc();
+    end_of_intr();
+}
+
+/**
+ * Handler for keyboard events
+ */
+static void keyboard_handler(void) {
+    int isDataPresent;
+    int data;
+    
+    DEBUG("Keyboard interrupt!\n");
+    isDataPresent = inb(KEYBOARD_PORT_CONTROL);
+    data = inb(KEYBOARD_PORT_DATA);
+    DEBUG("idp: %d data: %d\n", isDataPresent, data);
+    
     end_of_intr();
 }
 

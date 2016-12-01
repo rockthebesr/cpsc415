@@ -84,6 +84,8 @@ typedef enum device_id_enum {
     NUM_DEVICES_ID_ENUMS
 } device_id_enum_t;
 
+#define KEYBOARD_PORT_DATA 0x60
+#define KEYBOARD_PORT_CONTROL 0x64
 #define KEYBOARD_IOCTL_SET_EOF 53
 #define KEYBOARD_IOCTL_ENABLE_ECHO 55
 #define KEYBOARD_IOCTL_DISABLE_ECHO 56
@@ -159,10 +161,12 @@ typedef struct proc_ctrl_block {
 
 /* disp */
 #define TIMER_INTERRUPT_VALUE 32
+#define KEYBOARD_INTERRUPT_VALUE 33
 #define SYSCALL_INTERRUPT_VALUE 50
 
 typedef enum {
     TIMER_INT,
+    KEYBOARD_INT,
     SYSCALL_CREATE,
     SYSCALL_YIELD,
     SYSCALL_STOP,
