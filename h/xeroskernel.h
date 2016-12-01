@@ -73,10 +73,35 @@ void  kfree(void *ptr);
 void  kmem_dump_free_list(void);
 int kmem_get_free_list_length(void);
 
+/* Devices */
+typedef enum device_id_enum {
+    DEVICE_ID_CONSOLE = 0,
+    DEVICE_ID_KEYBOARD,
+    NUM_DEVICES_ID_ENUMS
+} device_id_enum_t;
+
+typedef struct devsw {
+    int dvnum;
+    char *dvname;
+    int (*dvinit)(void);
+    int (*dvread)(void*, int);
+    int (*dvwrite)(void*, int);
+    int (*dvioctl)(unsigned long, ...);
+    // input available interrupt
+    int (*dviint)(void);
+    // output available interrupt
+    int (*dvoint)(void);
+    // device specific data (usually pointer to another struct)
+    void *dvioblk;
+} devsw_t;
+
+extern devsw_t g_device_table[NUM_DEVICES_ID_ENUMS];
+
 /* Process Manager */
 
 // maximum number of processes
 #define PCB_TABLE_SIZE 32
+#define PCB_NUM_FDS 4
 
 typedef enum {
     PROC_STATE_READY = 0,
@@ -109,6 +134,8 @@ typedef struct proc_ctrl_block {
     funcptr_args1 *signal_table;
     int signals_fired;
     int signals_enabled;
+    
+    devsw_t *fd_table[PCB_NUM_FDS];
 
     struct proc_ctrl_block *blocking_proc;
     blocking_queue_t blocking_queue_name;
@@ -213,6 +240,7 @@ typedef struct context_frame {
 } context_frame_t;
 
 /* disp calls for devices */
+
 extern int di_open(void);
 extern int di_close(void);
 extern int di_write(void);
