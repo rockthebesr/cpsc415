@@ -7,13 +7,18 @@ Called from outside:
 
 #include <xerostest.h>
 #include <xeroskernel.h>
+#include <xeroslib.h>
 
 static void devtest_various(void);
 static void devtest_open_close(void);
+static void devtest_write(void);
+static void devtest_read(void);
 
 void dev_run_all_tests(void) {
     devtest_various();
     devtest_open_close();
+    devtest_write();
+    devtest_read();
     
     DEBUG("Done all device tests. Looping forever\n");
     while(1);
@@ -23,29 +28,70 @@ static void devtest_various(void) {
     char buf[20];
     DEBUG("buf addr: 0x%08x, sizeof(buf): %d\n", (unsigned long)buf, sizeof(buf));
     
-    kprintf("syswrite: %d\n", syswrite(0, &buf, sizeof(buf)));
-    kprintf("sysread: %d\n", sysread(0, &buf, sizeof(buf)));
     kprintf("sysioctl: %d\n", sysioctl(0, 1));
     kprintf("sysioctl: %d\n", sysioctl(0, 1, 2));
 }
 
 static void devtest_open_close(void) {
     int fd;
-    int result;
     
     // Valid case: open and close the first FD
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
-    result = sysclose(fd);
-    ASSERT_EQUAL(result, 0);
+    ASSERT_EQUAL(sysclose(fd), 0);
     
     // Error case: double close
-    result = sysclose(fd);
-    ASSERT_EQUAL(result, EBADF);
+    ASSERT_EQUAL(sysclose(fd), EBADF);
     
     // Error case: Random closes
     ASSERT_EQUAL(sysclose(-1), EBADF);
     ASSERT_EQUAL(sysclose(2), EBADF);
     ASSERT_EQUAL(sysclose(PCB_NUM_FDS), EBADF);
     ASSERT_EQUAL(sysclose(PCB_NUM_FDS + 1), EBADF);
+}
+
+static void devtest_write(void) {
+    int fd;
+    char buf[20];
+    
+    DEBUG("buf addr: 0x%08x, sizeof(buf): %d\n", (unsigned long)buf, sizeof(buf));
+    sprintf(buf, "Hello");
+    
+    // Valid case: open and write a FD
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    ASSERT_EQUAL(fd, 0);
+    ASSERT_EQUAL(syswrite(fd, buf, strlen(buf)), 0);
+    
+    // Error case: write to a closed FD
+    ASSERT_EQUAL(sysclose(fd), 0);
+    ASSERT_EQUAL(syswrite(fd, buf, strlen(buf)), EBADF);
+    
+    // Error case: write to arbitrary FDs
+    ASSERT_EQUAL(syswrite(-1, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(syswrite(2, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(syswrite(PCB_NUM_FDS, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(syswrite(PCB_NUM_FDS + 1, buf, strlen(buf)), EBADF);
+}
+
+static void devtest_read(void) {
+    int fd;
+    char buf[20];
+    
+    DEBUG("buf addr: 0x%08x, sizeof(buf): %d\n", (unsigned long)buf, sizeof(buf));
+    sprintf(buf, "Hello");
+    
+    // Valid case: open and read a FD
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    ASSERT_EQUAL(fd, 0);
+    ASSERT_EQUAL(sysread(fd, buf, strlen(buf)), 0);
+    
+    // Error case: read to a closed FD
+    ASSERT_EQUAL(sysclose(fd), 0);
+    ASSERT_EQUAL(sysread(fd, buf, strlen(buf)), EBADF);
+    
+    // Error case: read to arbitrary FDs
+    ASSERT_EQUAL(sysread(-1, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(sysread(2, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(sysread(PCB_NUM_FDS, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(sysread(PCB_NUM_FDS + 1, buf, strlen(buf)), EBADF);
 }

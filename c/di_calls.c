@@ -27,7 +27,6 @@ void di_init_devtable(void) {
  */
 int di_open(proc_ctrl_block_t *proc, int device_no) {
     int i;
-    DEBUG("device_no: %d\n", device_no);
     
     ASSERT(proc != NULL);
     
@@ -53,8 +52,6 @@ int di_open(proc_ctrl_block_t *proc, int device_no) {
  * Handler for sysclose
  */
 int di_close(proc_ctrl_block_t *proc, int fd) {
-    DEBUG("fd: %d\n", fd);
-    
     ASSERT(proc != NULL);
     
     if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
@@ -69,18 +66,26 @@ int di_close(proc_ctrl_block_t *proc, int fd) {
  * Handler for syswrite
  */
 int di_write(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
-    DEBUG("fd: %d, buf: 0x%08x, buflen: %d\n", fd, buf, buflen);
-    // TODO: Implement me!
-    return -1;
+    ASSERT(proc != NULL);
+    
+    if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
+        return EBADF;
+    }
+    
+    return proc->fd_table[fd]->dvwrite(proc->fd_table[fd]->dvioblk, buf, buflen);
 }
 
 /**
  * Handler for sysread
  */
 int di_read(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
-    DEBUG("fd: %d, buf: 0x%08x, buflen: %d\n", fd, buf, buflen);
-    // TODO: Implement me!
-    return -1;
+    ASSERT(proc != NULL);
+    
+    if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
+        return EBADF;
+    }
+    
+    return proc->fd_table[fd]->dvread(proc->fd_table[fd]->dvioblk, buf, buflen);
 }
 
 /**
