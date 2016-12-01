@@ -29,6 +29,9 @@ typedef unsigned int size_t; /* Something that can hold the value of
 #define	EINVAL       -6         /* invalid parameter */
 #define	ENOMEM       -7         /* out of memory */
 #define EPROCLIMIT   -8         /* process limit reached */
+#define ENODEV       -9         /* device does not exist */
+#define EMFILE       -10        /* too many open files (no available FDs) */
+#define EBADF        -11        /* bad FD number */
 
 
 #define DEFAULT_STACK_SIZE 8192

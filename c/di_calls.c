@@ -26,9 +26,27 @@ void di_init_devtable(void) {
  * Handler for sysopen
  */
 int di_open(proc_ctrl_block_t *proc, int device_no) {
+    int i;
     DEBUG("device_no: %d\n", device_no);
-    // TODO: Implement me!
-    return -1;
+    
+    ASSERT(proc != NULL);
+    
+    if (device_no < 0 || device_no >= NUM_DEVICES_ID_ENUMS) {
+        return ENODEV;
+    }
+    
+    for (i = 0; i < PCB_NUM_FDS; i++) {
+        if (proc->fd_table[i] == NULL) {
+            break;
+        }
+    }
+    
+    if (i >= PCB_NUM_FDS) {
+        return EMFILE;
+    }
+    
+    proc->fd_table[i] = &g_device_table[device_no];
+    return 0;
 }
 
 /**
@@ -36,8 +54,15 @@ int di_open(proc_ctrl_block_t *proc, int device_no) {
  */
 int di_close(proc_ctrl_block_t *proc, int fd) {
     DEBUG("fd: %d\n", fd);
-    // TODO: Implement me!
-    return -1;
+    
+    ASSERT(proc != NULL);
+    
+    if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
+        return EBADF;
+    }
+    
+    proc->fd_table[fd] = NULL;
+    return 0;
 }
 
 /**
