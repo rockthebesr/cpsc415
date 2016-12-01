@@ -39,6 +39,9 @@ void initproc( void )				/* The beginning */
 
   kmeminit();
   kprintf("kmem initialized\n");
+  
+  di_init_devtable();
+  kprintf("devices initialized\n");
 
   ctsw_init_evec();
   kprintf("context switcher initialized\n");

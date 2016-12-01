@@ -75,14 +75,14 @@ int kmem_get_free_list_length(void);
 
 /* Devices */
 typedef enum device_id_enum {
-    DEVICE_ID_CONSOLE = 0,
-    DEVICE_ID_KEYBOARD,
+    DEVICE_ID_KEYBOARD = 0,
+    DEVICE_ID_KEYBOARD_NO_ECHO,
     NUM_DEVICES_ID_ENUMS
 } device_id_enum_t;
 
 typedef struct devsw {
     int dvnum;
-    char *dvname;
+    char dvname[20];
     int (*dvinit)(void);
     int (*dvread)(void*, int);
     int (*dvwrite)(void*, int);
@@ -95,7 +95,7 @@ typedef struct devsw {
     void *dvioblk;
 } devsw_t;
 
-extern devsw_t g_device_table[NUM_DEVICES_ID_ENUMS];
+void di_init_devtable(void);
 
 /* Process Manager */
 

@@ -11,6 +11,16 @@ Further details can be found in the documentation above the function headers.
  */
 
 #include <xeroskernel.h>
+#include <kbd.h>
+
+// Device table
+static devsw_t g_device_table[NUM_DEVICES_ID_ENUMS];
+
+void di_init_devtable(void) {
+    kdb_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD], 1);
+    kdb_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD_NO_ECHO], 0);
+}
+
 
 /**
  * Handler for sysopen
