@@ -93,8 +93,24 @@ static void devtest_ioctl(void) {
     
     // Valid case: open and ioctl a FD
     fd = sysopen(DEVICE_ID_KEYBOARD);
-    ASSERT_EQUAL(sysioctl(0, 1, -1), 0);
-    ASSERT_EQUAL(sysioctl(0, 1, 2, -1), 0);
-    ASSERT_EQUAL(sysioctl(0, 1, 2, 3, -1), 0);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), 0);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_EOF), (int)'a');
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_ENABLE_ECHO), 0);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), 1);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO), 0);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), 0);
+    
+    // Invalid case: Random ioctl command codes
+    ASSERT_EQUAL(sysioctl(fd, 1), ENOIOCTLCMD);
+    ASSERT_EQUAL(sysioctl(fd, -1), ENOIOCTLCMD);
+    ASSERT_EQUAL(sysioctl(fd, 0), ENOIOCTLCMD);
+    
+    // Invalid case: ioctl on closed FD
     ASSERT_EQUAL(sysclose(fd), 0);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), EBADF);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_EOF), EBADF);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_ENABLE_ECHO), EBADF);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), EBADF);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO), EBADF);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), EBADF);
 }

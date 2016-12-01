@@ -13,6 +13,12 @@ typedef struct kbd_dvioblk {
     int echo_flag; // 1 for on, 0 for off
 } kbd_dvioblk_t;
 
+static int kbd_ioctl_set_eof(kbd_dvioblk_t *dvioblk, void *args);
+static int kbd_ioctl_enable_echo(kbd_dvioblk_t *dvioblk);
+static int kbd_ioctl_disable_echo(kbd_dvioblk_t *dvioblk);
+static int kbd_ioctl_get_eof(kbd_dvioblk_t *dvioblk);
+static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk);
+
 /**
  * Fills in a device table entry with keyboard-device specific values
  * @param entry - device table entry to be modified
@@ -56,15 +62,20 @@ int kbd_write(void *dvioblk, void* buf, int buflen) {
 }
 
 int kbd_ioctl(void *dvioblk, unsigned long command, void *args) {
-    int i;
-    DEBUG("command: %ld, args: 0x%08x\n", command, (unsigned long)args);
-    va_list v = (va_list)args;
-    
-    while ((i = va_arg(v, int)) >= 0) {
-        DEBUG("arg: %d\n", i);
+    switch(command) {
+        case KEYBOARD_IOCTL_SET_EOF:
+            return kbd_ioctl_set_eof((kbd_dvioblk_t*)dvioblk, args);
+        case KEYBOARD_IOCTL_ENABLE_ECHO:
+            return kbd_ioctl_enable_echo((kbd_dvioblk_t*)dvioblk);
+        case KEYBOARD_IOCTL_DISABLE_ECHO:
+            return kbd_ioctl_disable_echo((kbd_dvioblk_t*)dvioblk);
+        case KEYBOARD_IOCTL_GET_EOF:
+            return kbd_ioctl_get_eof((kbd_dvioblk_t*)dvioblk);
+        case KEYBOARD_IOCTL_GET_ECHO:
+            return kbd_ioctl_get_echo_flag((kbd_dvioblk_t*)dvioblk);
+        default:
+            return ENOIOCTLCMD;
     }
-    
-    return 0;
 }
 
 // input available interrupt
@@ -77,4 +88,44 @@ int kbd_iint(void) {
 int kbd_oint(void) {
     DEBUG("\n");
     return -1;
+}
+
+/**
+ * ioctl commands
+ */
+static int kbd_ioctl_set_eof(kbd_dvioblk_t *dvioblk, void *args) {
+    ASSERT(dvioblk != NULL);
+    va_list v;
+    
+    if (args == NULL) {
+        return EINVAL;
+    }
+    
+    v = (va_list)args;
+    // the va_arg parameter requires int, compiler warns against using char
+    ((kbd_dvioblk_t*)dvioblk)->eof = (char)va_arg(v, int);
+    
+    return 0;
+}
+
+static int kbd_ioctl_enable_echo(kbd_dvioblk_t *dvioblk) {
+    ASSERT(dvioblk != NULL);
+    ((kbd_dvioblk_t*)dvioblk)->echo_flag = 1;
+    return 0;
+}
+
+static int kbd_ioctl_disable_echo(kbd_dvioblk_t *dvioblk) {
+    ASSERT(dvioblk != NULL);
+    ((kbd_dvioblk_t*)dvioblk)->echo_flag = 0;
+    return 0;
+}
+
+static int kbd_ioctl_get_eof(kbd_dvioblk_t *dvioblk) {
+    ASSERT(dvioblk != NULL);
+    return (int)((kbd_dvioblk_t*)dvioblk)->eof;
+}
+
+static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk) {
+    ASSERT(dvioblk != NULL);
+    return (int)((kbd_dvioblk_t*)dvioblk)->echo_flag;
 }
