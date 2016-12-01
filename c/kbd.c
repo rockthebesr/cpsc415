@@ -22,11 +22,14 @@ static int kbd_ioctl_enable_echo(kbd_dvioblk_t *dvioblk);
 static int kbd_ioctl_disable_echo(kbd_dvioblk_t *dvioblk);
 static int kbd_ioctl_get_eof(kbd_dvioblk_t *dvioblk);
 static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk);
-
-static char keyboard_process_scancode(int data);
-
 // Only 1 keyboard is allowed to be open at a time
 static int g_kbd_in_use = 0;
+
+static char keyboard_process_scancode(int data);
+#define KEYBOARD_STATE_SHIFT_FLAG (0x01)
+#define KEYBOARD_STATE_CTRL_FLAG (0x02)
+static int g_keyboard_keystate_flag = 0;
+
 
 /**
  * Fills in a device table entry with keyboard-device specific values
@@ -72,6 +75,7 @@ int kbd_open(void *dvioblk) {
     }
     
     g_kbd_in_use = 1;
+    g_keyboard_keystate_flag = 0;
     setEnabledKbd(1);
     return 0;
 }
@@ -184,24 +188,23 @@ void keyboard_isr(void) {
     
     isDataPresent = KEYBOARD_PORT_CONTROL_READY_MASK & inb(KEYBOARD_PORT_CONTROL);
     data = KEYBOARD_PORT_DATA_SCANCODE_MASK & inb(KEYBOARD_PORT_DATA);
-    if (data < 0x54) {
+    if (isDataPresent) {
         c = keyboard_process_scancode(data);
-        DEBUG("idp: %d data: 0x%02x char: %c\n", isDataPresent, data, c);
+        if (c != 0) {
+            kprintf("%c", c);
+        }
     }
 }
 
 /**
- * This function unfortunately cannot be stateless.
- * State is required to track whether the shift/ctrl/alt keys
- * have been pressed.
- *
+ * Translate the scancodes
  * @param data - raw keycode
  * @return char if a character was input, 0 otherwise
  */
 static char keyboard_process_scancode(int data) {
-    static char basic[0x54] = {
+    static char lower[0x54] = {
         // 0x00 - 0x07
-           0,  '0',  '1',  '2',  '3',  '4',  '5',  '6',
+           0,    0,  '1',  '2',  '3',  '4',  '5',  '6',
         // 0x08 - 0x0F
          '7',  '8',  '9',  '0',  '-',  '=',    0, '\t',
         // 0x10 - 0x17
@@ -223,6 +226,64 @@ static char keyboard_process_scancode(int data) {
         // 0x50 - 0x53
            0,    0,    0,    0
     };
+
+    static char upper[0x54] = {
+        // 0x00 - 0x07
+           0,    0,  '!',  '@',  '#',  '$',  '%',  '^',
+        // 0x08 - 0x0F
+         '&',  '*',  '(',  ')',  '_',  '+',    0, '\t',
+        // 0x10 - 0x17
+         'Q',  'W',  'E',  'R',  'T',  'Y',  'U',  'I',
+        // 0X18 - 0X1F
+         'O',  'P',  '{',  '}', '\n',    0,  'A',  'S',
+        // 0X20 - 0X27
+         'D',  'F',  'G',  'H',  'J',  'K',  'L',  ':',
+        // 0X28 - 0X2F
+         '"',  '~',    0,  '|',  'Z',  'X',  'C',  'V',
+        // 0X30 - 0X37
+         'B',  'N',  'M',  '<',  '>',  '?',    0,    0,
+        // 0x38 - 0x3F
+           0,  ' ',    0,    0,    0,    0,    0,    0,
+        // 0x40 - 0x47
+           0,    0,    0,    0,    0,    0,    0,    0,
+        // 0x48 - 0x4F
+           0,    0,  '-',    0,    0,    0,    0,   '+',
+        // 0x50 - 0x53
+           0,    0,    0,    0
+    };
     
-    return basic[data];
+    char c = 0;
+    if (data < 0x54) {
+        if (g_keyboard_keystate_flag & KEYBOARD_STATE_CTRL_FLAG) {
+            c = '^';
+        } else if (g_keyboard_keystate_flag & KEYBOARD_STATE_SHIFT_FLAG) {
+            c = upper[data];
+        } else {
+            c = lower[data];
+        }
+    }
+    
+    if (c == 0) {
+        switch(data) {
+            case 0x2A:
+            case 0x36:
+                // shfit key pressed
+                g_keyboard_keystate_flag |= KEYBOARD_STATE_SHIFT_FLAG;
+                break;
+            case 0xAA:
+            case 0xB6:
+                // shift key released
+                g_keyboard_keystate_flag &= ~KEYBOARD_STATE_SHIFT_FLAG;
+                break;
+            case 0x1D:
+                g_keyboard_keystate_flag |= KEYBOARD_STATE_CTRL_FLAG;
+                break;
+            case 0x9D:
+                g_keyboard_keystate_flag &= ~KEYBOARD_STATE_CTRL_FLAG;
+                break;
+            default:
+                break;
+        }
+    }
+    return c;
 }
