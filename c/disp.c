@@ -12,6 +12,7 @@ Further details can be found in the documentation above the function headers.
 #include <pcb.h>
 #include <i386.h>
 #include <copyinout.h>
+#include <kbd.h>
 
 /* Syscall dispatches */
 static void timer_handler(void);
@@ -326,14 +327,7 @@ static void timer_handler(void) {
  * Handler for keyboard events
  */
 static void keyboard_handler(void) {
-    int isDataPresent;
-    int data;
-    
-    DEBUG("Keyboard interrupt!\n");
-    isDataPresent = inb(KEYBOARD_PORT_CONTROL);
-    data = inb(KEYBOARD_PORT_DATA);
-    DEBUG("idp: %d data: %d\n", isDataPresent, data);
-    
+    keyboard_isr();
     end_of_intr();
 }
 

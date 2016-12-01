@@ -4,9 +4,13 @@
 #include <xeroslib.h>
 #include <kbd.h>
 #include <stdarg.h>
+#include <i386.h>
 
 // TODO: Default EOF should be ctrl-D
 #define KBD_DEFAULT_EOF 0
+
+#define KEYBOARD_PORT_CONTROL_READY_MASK 0x01
+#define KEYBOARD_PORT_DATA_SCANCODE_MASK 0x0FF
 
 typedef struct kbd_dvioblk {
     char eof;
@@ -18,6 +22,8 @@ static int kbd_ioctl_enable_echo(kbd_dvioblk_t *dvioblk);
 static int kbd_ioctl_disable_echo(kbd_dvioblk_t *dvioblk);
 static int kbd_ioctl_get_eof(kbd_dvioblk_t *dvioblk);
 static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk);
+
+static char keyboard_process_scancode(int data);
 
 // Only 1 keyboard is allowed to be open at a time
 static int g_kbd_in_use = 0;
@@ -66,6 +72,7 @@ int kbd_open(void *dvioblk) {
     }
     
     g_kbd_in_use = 1;
+    setEnabledKbd(1);
     return 0;
 }
 
@@ -78,6 +85,7 @@ int kbd_close(void *dvioblk) {
     }
     
     g_kbd_in_use = 0;
+    setEnabledKbd(0);
     return 0;
 }
 
@@ -162,4 +170,59 @@ static int kbd_ioctl_get_eof(kbd_dvioblk_t *dvioblk) {
 static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk) {
     ASSERT(dvioblk != NULL);
     return (int)((kbd_dvioblk_t*)dvioblk)->echo_flag;
+}
+
+/**
+ * Keyboard lower-half functions
+ * For naming, kbd_* is upper half
+ *             keyboard_* is lower half
+ */
+void keyboard_isr(void) {
+    int isDataPresent;
+    int data;
+    char c = 0;
+    
+    isDataPresent = KEYBOARD_PORT_CONTROL_READY_MASK & inb(KEYBOARD_PORT_CONTROL);
+    data = KEYBOARD_PORT_DATA_SCANCODE_MASK & inb(KEYBOARD_PORT_DATA);
+    if (data < 0x54) {
+        c = keyboard_process_scancode(data);
+        DEBUG("idp: %d data: 0x%02x char: %c\n", isDataPresent, data, c);
+    }
+}
+
+/**
+ * This function unfortunately cannot be stateless.
+ * State is required to track whether the shift/ctrl/alt keys
+ * have been pressed.
+ *
+ * @param data - raw keycode
+ * @return char if a character was input, 0 otherwise
+ */
+static char keyboard_process_scancode(int data) {
+    static char basic[0x54] = {
+        // 0x00 - 0x07
+           0,  '0',  '1',  '2',  '3',  '4',  '5',  '6',
+        // 0x08 - 0x0F
+         '7',  '8',  '9',  '0',  '-',  '=',    0, '\t',
+        // 0x10 - 0x17
+         'q',  'w',  'e',  'r',  't',  'y',  'u',  'i',
+        // 0x18 - 0x1F
+         'o',  'p',  '[',  ']', '\n',    0,  'a',  's',
+        // 0x20 - 0x27
+         'd',  'f',  'g',  'h',  'j',  'k',  'l',  ';',
+        // 0x28 - 0x2F
+        '\'',  '`',    0, '\\',  'z',  'x',  'c',  'v',
+        // 0x30 - 0x37
+         'b',  'n',  'm',  ',',  '.',  '/',    0,    0,
+        // 0x38 - 0x3F
+           0,  ' ',    0,    0,    0,    0,    0,    0,
+        // 0x40 - 0x47
+           0,    0,    0,    0,    0,    0,    0,    0,
+        // 0x48 - 0x4F
+           0,    0,  '-',    0,    0,    0,    0,   '+',
+        // 0x50 - 0x53
+           0,    0,    0,    0
+    };
+    
+    return basic[data];
 }

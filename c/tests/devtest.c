@@ -20,6 +20,7 @@ void dev_run_all_tests(void) {
     devtest_read();
     devtest_ioctl();
     
+    ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
     DEBUG("Done all device tests. Looping forever\n");
     while(1);
 }
