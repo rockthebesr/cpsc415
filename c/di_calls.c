@@ -19,6 +19,10 @@ static devsw_t g_device_table[NUM_DEVICES_ID_ENUMS];
 void di_init_devtable(void) {
     kbd_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD], 1);
     kbd_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD_NO_ECHO], 0);
+    
+    for (int i = 0; i < NUM_DEVICES_ID_ENUMS; i++) {
+        g_device_table[i].dvinit();
+    }
 }
 
 
