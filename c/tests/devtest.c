@@ -69,13 +69,12 @@ static void devtest_write(void) {
     int fd;
     char buf[20];
     
-    DEBUG("buf addr: 0x%08x, sizeof(buf): %d\n", (unsigned long)buf, sizeof(buf));
     sprintf(buf, "Hello");
     
     // Valid case: open and write a FD
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
-    ASSERT_EQUAL(syswrite(fd, buf, strlen(buf)), 0);
+    ASSERT_EQUAL(syswrite(fd, buf, strlen(buf)), -1);
     
     // Error case: write to a closed FD
     ASSERT_EQUAL(sysclose(fd), 0);

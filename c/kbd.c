@@ -85,9 +85,11 @@ int kbd_read(void *dvioblk, void* buf, int buflen) {
 }
 
 int kbd_write(void *dvioblk, void* buf, int buflen) {
-    DEBUG("buf: 0x%08x, buflen: %d\n", buf, buflen);
-    // TODO: implement me!
-    return 0;
+    (void)dvioblk;
+    (void)buf;
+    (void)buflen;
+    // Cannot write to keyboard
+    return -1;
 }
 
 int kbd_ioctl(void *dvioblk, unsigned long command, void *args) {
