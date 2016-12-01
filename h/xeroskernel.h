@@ -33,6 +33,7 @@ typedef unsigned int size_t; /* Something that can hold the value of
 #define EMFILE       -10        /* too many open files (no available FDs) */
 #define EBADF        -11        /* bad FD number */
 #define ENOIOCTLCMD  -12        /* no such IOCTL command for this device */
+#define EBUSY        -13        /* device busy */
 
 #define DEFAULT_STACK_SIZE 8192
 #define TICK_LENGTH_IN_MS 10
@@ -94,6 +95,8 @@ typedef struct devsw {
     int dvnum;
     char dvname[20];
     int (*dvinit)(void);
+    int (*dvopen)(void *dvioblk);
+    int (*dvclose)(void *dvioblk);
     int (*dvread)(void *dvioblk, void *buf, int buflen);
     int (*dvwrite)(void *dvioblk, void *buf, int buflen);
     int (*dvioctl)(void *dvioblk, unsigned long command, void *args);

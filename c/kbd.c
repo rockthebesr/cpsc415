@@ -19,6 +19,9 @@ static int kbd_ioctl_disable_echo(kbd_dvioblk_t *dvioblk);
 static int kbd_ioctl_get_eof(kbd_dvioblk_t *dvioblk);
 static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk);
 
+// Only 1 keyboard is allowed to be open at a time
+static int g_kbd_in_use = 0;
+
 /**
  * Fills in a device table entry with keyboard-device specific values
  * @param entry - device table entry to be modified
@@ -28,6 +31,8 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
     
     sprintf(entry->dvname, "keyboard");
     entry->dvinit = &kbd_init;
+    entry->dvopen = &kbd_open;
+    entry->dvclose = &kbd_close;
     entry->dvread = &kbd_read;
     entry->dvwrite = &kbd_write;
     entry->dvioctl = &kbd_ioctl;
@@ -45,8 +50,32 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
  */
 
 int kbd_init(void) {
-    DEBUG("\n");
-    return -1;
+    g_kbd_in_use = 0;
+    return 0;
+}
+
+int kbd_open(void *dvioblk) {
+    // unused
+    (void)dvioblk;
+    
+    if (g_kbd_in_use) {
+        return EBUSY;
+    }
+    
+    g_kbd_in_use = 1;
+    return 0;
+}
+
+int kbd_close(void *dvioblk) {
+    // unused
+    (void)dvioblk;
+    
+    if (!g_kbd_in_use) {
+        return EBADF;
+    }
+    
+    g_kbd_in_use = 0;
+    return 0;
 }
 
 int kbd_read(void *dvioblk, void* buf, int buflen) {

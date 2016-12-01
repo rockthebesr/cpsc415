@@ -26,6 +26,7 @@ void dev_run_all_tests(void) {
 
 static void devtest_open_close(void) {
     int fd;
+    int fd2;
     
     // Valid case: open and close the first FD
     fd = sysopen(DEVICE_ID_KEYBOARD);
@@ -40,6 +41,28 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(sysclose(2), EBADF);
     ASSERT_EQUAL(sysclose(PCB_NUM_FDS), EBADF);
     ASSERT_EQUAL(sysclose(PCB_NUM_FDS + 1), EBADF);
+    
+    // Error case: open twice
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    fd2 = sysopen(DEVICE_ID_KEYBOARD);
+    ASSERT_EQUAL(fd, 0);
+    ASSERT_EQUAL(fd2, EBUSY);
+    ASSERT_EQUAL(sysclose(fd), 0);
+    ASSERT_EQUAL(sysclose(fd2), EBADF);
+    
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    fd2 = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
+    ASSERT_EQUAL(fd, 0);
+    ASSERT_EQUAL(fd2, EBUSY);
+    ASSERT_EQUAL(sysclose(fd), 0);
+    ASSERT_EQUAL(sysclose(fd2), EBADF);
+    
+    fd = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
+    fd2 = sysopen(DEVICE_ID_KEYBOARD);
+    ASSERT_EQUAL(fd, 0);
+    ASSERT_EQUAL(fd2, EBUSY);
+    ASSERT_EQUAL(sysclose(fd), 0);
+    ASSERT_EQUAL(sysclose(fd2), EBADF);
 }
 
 static void devtest_write(void) {

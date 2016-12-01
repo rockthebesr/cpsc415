@@ -27,6 +27,7 @@ void di_init_devtable(void) {
  */
 int di_open(proc_ctrl_block_t *proc, int device_no) {
     int i;
+    int result;
     
     ASSERT(proc != NULL);
     
@@ -45,6 +46,12 @@ int di_open(proc_ctrl_block_t *proc, int device_no) {
     }
     
     proc->fd_table[i] = &g_device_table[device_no];
+    result = proc->fd_table[i]->dvopen(proc->fd_table[i]->dvioblk);
+    if (result != 0) {
+        proc->fd_table[i] = NULL;
+        return result;
+    }
+    
     return 0;
 }
 
@@ -52,14 +59,16 @@ int di_open(proc_ctrl_block_t *proc, int device_no) {
  * Handler for sysclose
  */
 int di_close(proc_ctrl_block_t *proc, int fd) {
+    devsw_t *entry;
     ASSERT(proc != NULL);
     
     if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
         return EBADF;
     }
     
+    entry = proc->fd_table[fd];
     proc->fd_table[fd] = NULL;
-    return 0;
+    return entry->dvclose(entry->dvioblk);
 }
 
 /**
