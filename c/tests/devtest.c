@@ -105,6 +105,9 @@ static void devtest_ioctl(void) {
     ASSERT_EQUAL(sysioctl(fd, -1), ENOIOCTLCMD);
     ASSERT_EQUAL(sysioctl(fd, 0), ENOIOCTLCMD);
     
+    // Invalid case: ioctl without the parameter... just make sure we don't crash
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF), 0);
+    
     // Invalid case: ioctl on closed FD
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), EBADF);
