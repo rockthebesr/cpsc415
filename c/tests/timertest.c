@@ -35,6 +35,7 @@ static void sleep20(void);
 static void rand_sleep_and_print(void);
 static void cputimehelper(void);
 static int syskill_wrapper(int pid);
+static void dummy_func(void);
 
 /**
  * Runs all timer tests
@@ -177,19 +178,18 @@ static void test_sleep1_simple(void) {
     int result;
     count = 0;
 
-    result = syscreate(&sleep10, DEFAULT_STACK_SIZE);
-    ASSERT(result >= 1);
-
     result = syscreate(&sleep20, DEFAULT_STACK_SIZE);
     ASSERT(result >= 1);
     
     result = syscreate(&sleep5, DEFAULT_STACK_SIZE);
     ASSERT(result >= 1);
     
+    result = syscreate(&sleep5, DEFAULT_STACK_SIZE);
+    ASSERT(result >= 1);
 
     while(count < 3) {
         sysputs("\tStill waiting...\n");
-        syssleep(1000);
+        ASSERT_EQUAL(syssleep(1000), 0);
     }
     
     sysputs("Done test_sleep1_simple\n");
@@ -211,14 +211,14 @@ static void test_sleep2_killmid(void) {
     pids[2] = syscreate(&sleep5, DEFAULT_STACK_SIZE);
     ASSERT(pids[2] >= 1);
     
-    syssleep(1000);
+    ASSERT_EQUAL(syssleep(1000), 0);
     sysputs("Killing sleep10...");
     syskill_wrapper(pids[0]);
     sysputs("Done.\n");
 
     while(count < 2) {
         sysputs("\tStill waiting...\n");
-        syssleep(1000);
+        ASSERT_EQUAL(syssleep(1000), 0);
     }
     
     sysputs("Done test_sleep2_killmid\n");
@@ -234,7 +234,7 @@ static void test_sleep3_simultaneous_wake(void) {
     
     while(count < 3) {
         sysputs("\tStill waiting...\n");
-        syssleep(1000);
+        ASSERT_EQUAL(syssleep(1000), 0);
     }
     
     sysputs("Done test_sleep3_simultaneous_wake\n");
@@ -242,20 +242,23 @@ static void test_sleep3_simultaneous_wake(void) {
 
 /* These are all for the sleep tests, to call syssleep() for a preset time */
 static void sleep5(void) {
-    syssleep(5000);
+    ASSERT_EQUAL(syssleep(5000), 0);
     sysputs("Slept: 5000\n");
     count++;
 }
 
 static void sleep10(void) {
-    SETUP_STOP_SIGNAL_HANDLER();
-    syssleep(10000);
+    funcptr_args1 oldHandler;
+    int ret = syssighandler(0, (funcptr_args1)&dummy_func, &oldHandler);
+    ASSERT_EQUAL(ret, 0);
+
+    ASSERT(syssleep(10000) > 0);
     sysputs("Slept: 10000\n");
     count++;
 }
 
 static void sleep20(void) {
-    syssleep(20000);
+    ASSERT_EQUAL(syssleep(20000), 0);
     sysputs("Slept: 20000\n");
     count++;
 }
@@ -273,7 +276,7 @@ static void rand_sleep_and_print(void) {
         sleep = (rand() % 5) * 100;
         sprintf(buf, "pid %d: (%d) sleeping for %lums\n", pid, i, sleep);
         sysputs(buf);
-        syssleep(sleep);
+        ASSERT_EQUAL(syssleep(sleep), 0);
     }
     sprintf(buf, "pid %d: DONE\n", pid, i);
     sysputs(buf);
@@ -378,4 +381,11 @@ static void cputimehelper(void) {
     sysyield();
     BUSYWAIT();
     BUSYWAIT();
+}
+
+/**
+ * Dummy signal handler
+ */
+static void dummy_func(void) {
+    return;
 }
