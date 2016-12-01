@@ -9,27 +9,19 @@ Called from outside:
 #include <xeroskernel.h>
 #include <xeroslib.h>
 
-static void devtest_various(void);
 static void devtest_open_close(void);
 static void devtest_write(void);
 static void devtest_read(void);
+static void devtest_ioctl(void);
 
 void dev_run_all_tests(void) {
-    devtest_various();
     devtest_open_close();
     devtest_write();
     devtest_read();
+    devtest_ioctl();
     
     DEBUG("Done all device tests. Looping forever\n");
     while(1);
-}
-
-static void devtest_various(void) {
-    char buf[20];
-    DEBUG("buf addr: 0x%08x, sizeof(buf): %d\n", (unsigned long)buf, sizeof(buf));
-    
-    kprintf("sysioctl: %d\n", sysioctl(0, 1));
-    kprintf("sysioctl: %d\n", sysioctl(0, 1, 2));
 }
 
 static void devtest_open_close(void) {
@@ -94,4 +86,15 @@ static void devtest_read(void) {
     ASSERT_EQUAL(sysread(2, buf, strlen(buf)), EBADF);
     ASSERT_EQUAL(sysread(PCB_NUM_FDS, buf, strlen(buf)), EBADF);
     ASSERT_EQUAL(sysread(PCB_NUM_FDS + 1, buf, strlen(buf)), EBADF);
+}
+
+static void devtest_ioctl(void) {
+    int fd;
+    
+    // Valid case: open and ioctl a FD
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    ASSERT_EQUAL(sysioctl(0, 1, -1), 0);
+    ASSERT_EQUAL(sysioctl(0, 1, 2, -1), 0);
+    ASSERT_EQUAL(sysioctl(0, 1, 2, 3, -1), 0);
+    ASSERT_EQUAL(sysclose(fd), 0);
 }

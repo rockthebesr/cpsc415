@@ -3,6 +3,7 @@
 
 #include <xeroslib.h>
 #include <kbd.h>
+#include <stdarg.h>
 
 // TODO: Default EOF should be ctrl-D
 #define KBD_DEFAULT_EOF 0
@@ -54,9 +55,16 @@ int kbd_write(void *dvioblk, void* buf, int buflen) {
     return 0;
 }
 
-int kbd_ioctl(void *dvioblk, unsigned long command, ...) {
-    DEBUG("\n");
-    return -1;
+int kbd_ioctl(void *dvioblk, unsigned long command, void *args) {
+    int i;
+    DEBUG("command: %ld, args: 0x%08x\n", command, (unsigned long)args);
+    va_list v = (va_list)args;
+    
+    while ((i = va_arg(v, int)) >= 0) {
+        DEBUG("arg: %d\n", i);
+    }
+    
+    return 0;
 }
 
 // input available interrupt

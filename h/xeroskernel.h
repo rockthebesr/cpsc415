@@ -89,7 +89,7 @@ typedef struct devsw {
     int (*dvinit)(void);
     int (*dvread)(void *dvioblk, void *buf, int buflen);
     int (*dvwrite)(void *dvioblk, void *buf, int buflen);
-    int (*dvioctl)(void *dvioblk, unsigned long command, ...);
+    int (*dvioctl)(void *dvioblk, unsigned long command, void *args);
     // input available interrupt
     int (*dviint)(void);
     // output available interrupt
@@ -248,7 +248,7 @@ extern int di_open(proc_ctrl_block_t *proc, int device_no);
 extern int di_close(proc_ctrl_block_t *proc, int fd);
 extern int di_write(proc_ctrl_block_t *proc, int fd, void *buf, int buflen);
 extern int di_read(proc_ctrl_block_t *proc, int fd, void *buf, int buflen);
-extern int di_ioctl(proc_ctrl_block_t *proc);
+extern int di_ioctl(proc_ctrl_block_t *proc, int fd, unsigned long command_code, void *args);
 
 /* kernel services */
 extern void init_idle_proc(proc_ctrl_block_t *idle_proc);

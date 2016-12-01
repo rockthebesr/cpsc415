@@ -22,6 +22,7 @@ Helper functions:
  */
 
 #include <xeroskernel.h>
+#include <stdarg.h>
 
 static unsigned long request_reg;
 static int syscall0(int request);
@@ -248,8 +249,15 @@ int sysread(int fd, void *buf, int buflen) {
  * @return 0 on success, -1 on failure
  */
 int sysioctl(int fd, unsigned long command, ...) {
-    // TODO: Implement me!
-    return -1;
+    int result;
+    va_list v;
+    
+    va_start(v, command);
+    result = syscall3(SYSCALL_IOCTL, (unsigned long)fd, (unsigned long)command,
+        (unsigned long)v);
+    va_end(v);
+    
+    return result;
 }
 
 /*****************************************************************************

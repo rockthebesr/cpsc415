@@ -91,8 +91,13 @@ int di_read(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
 /**
  * Handler for sysioctl
  */
-int di_ioctl(proc_ctrl_block_t *proc) {
-    DEBUG("\n");
-    // TODO: Implement me!
-    return -1;
+int di_ioctl(proc_ctrl_block_t *proc, int fd, unsigned long command_code, void *args) {
+    ASSERT(proc != NULL);
+    
+    if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
+        return EBADF;
+    }
+    
+    return proc->fd_table[fd]->dvioctl(proc->fd_table[fd]->dvioblk,
+        command_code, args);
 }

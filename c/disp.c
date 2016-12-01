@@ -418,6 +418,6 @@ static int dispatch_syscall_read(void) {
  * Handler for sysioctl
  */
 static int dispatch_syscall_ioctl(void) {
-    // TODO: Implement me!
-    return di_ioctl(currproc);
+    return di_ioctl(currproc, (int)currproc->args[0],
+        (unsigned long)currproc->args[1], (void*)currproc->args[2]);
 }
