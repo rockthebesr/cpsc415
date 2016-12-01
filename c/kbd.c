@@ -26,6 +26,7 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
     entry->dvioctl = &kbd_ioctl;
     entry->dviint = &kbd_iint;
     entry->dvoint = &kbd_oint;
+    // Note: this kmalloc will intentionally never be kfree'd
     entry->dvioblk = (kbd_dvioblk_t*)kmalloc(sizeof(kbd_dvioblk_t));
     ASSERT(entry->dvioblk != NULL);
     ((kbd_dvioblk_t*)entry->dvioblk)->eof = (char)KBD_DEFAULT_EOF;

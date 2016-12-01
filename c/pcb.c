@@ -138,6 +138,11 @@ proc_ctrl_block_t* get_next_available_pcb(void) {
 
     proc->curr_state = PROC_STATE_STOPPED;
     proc->blocking_queue_name = NO_BLOCKER;
+    
+    // Reset the fd table
+    for (int i = 0; i < PCB_NUM_FDS; i++) {
+        proc->fd_table[i] = NULL;
+    }
 
     // To allow us to access a proc by its pid in constant time,
     // we set our pids a multiple of PCB_TABLE_SIZE
@@ -281,7 +286,7 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
     if (proc->blocking_queue_name != NO_BLOCKER) {
         resolve_blocking(proc);
     }
-
+    
     add_pcb_to_queue(proc, PROC_STATE_STOPPED);
 }
 
