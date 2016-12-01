@@ -378,14 +378,14 @@ static void dispatch_syscall_sigreturn(void) {
  * Handler for sysopen
  */
 static int dispatch_syscall_open(void) {
-    return di_open((int)currproc->args[0]);
+    return di_open(currproc, (int)currproc->args[0]);
 }
 
 /**
  * Handler for sysclose
  */
 static int dispatch_syscall_close(void) {
-    return di_close((int)currproc->args[0]);
+    return di_close(currproc, (int)currproc->args[0]);
 }
 
 /**
@@ -397,7 +397,7 @@ static int dispatch_syscall_write(void) {
         return result;
     }
     
-    return di_write((int)currproc->args[0], (void*)currproc->args[1],
+    return di_write(currproc, (int)currproc->args[0], (void*)currproc->args[1],
         (int)currproc->args[2]);
 }
 
@@ -410,7 +410,7 @@ static int dispatch_syscall_read(void) {
         return result;
     }
     
-    return di_read((int)currproc->args[0], (void*)currproc->args[1],
+    return di_read(currproc, (int)currproc->args[0], (void*)currproc->args[1],
         (int)currproc->args[2]);
 }
 
@@ -419,5 +419,5 @@ static int dispatch_syscall_read(void) {
  */
 static int dispatch_syscall_ioctl(void) {
     // TODO: Implement me!
-    return di_ioctl();
+    return di_ioctl(currproc);
 }

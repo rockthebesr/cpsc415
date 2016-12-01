@@ -25,7 +25,7 @@ void di_init_devtable(void) {
 /**
  * Handler for sysopen
  */
-int di_open(int device_no) {
+int di_open(proc_ctrl_block_t *proc, int device_no) {
     DEBUG("device_no: %d\n", device_no);
     // TODO: Implement me!
     return -1;
@@ -34,7 +34,7 @@ int di_open(int device_no) {
 /**
  * Handler for sysclose
  */
-int di_close(int fd) {
+int di_close(proc_ctrl_block_t *proc, int fd) {
     DEBUG("fd: %d\n", fd);
     // TODO: Implement me!
     return -1;
@@ -43,7 +43,7 @@ int di_close(int fd) {
 /**
  * Handler for syswrite
  */
-int di_write(int fd, void *buf, int buflen) {
+int di_write(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
     DEBUG("fd: %d, buf: 0x%08x, buflen: %d\n", fd, buf, buflen);
     // TODO: Implement me!
     return -1;
@@ -52,7 +52,7 @@ int di_write(int fd, void *buf, int buflen) {
 /**
  * Handler for sysread
  */
-int di_read(int fd, void *buf, int buflen) {
+int di_read(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
     DEBUG("fd: %d, buf: 0x%08x, buflen: %d\n", fd, buf, buflen);
     // TODO: Implement me!
     return -1;
@@ -61,7 +61,7 @@ int di_read(int fd, void *buf, int buflen) {
 /**
  * Handler for sysioctl
  */
-int di_ioctl(void) {
+int di_ioctl(proc_ctrl_block_t *proc) {
     DEBUG("\n");
     // TODO: Implement me!
     return -1;
