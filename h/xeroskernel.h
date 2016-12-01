@@ -84,9 +84,9 @@ typedef struct devsw {
     int dvnum;
     char dvname[20];
     int (*dvinit)(void);
-    int (*dvread)(void*, int);
-    int (*dvwrite)(void*, int);
-    int (*dvioctl)(unsigned long, ...);
+    int (*dvread)(void *dvioblk, void *buf, int buflen);
+    int (*dvwrite)(void *dvioblk, void *buf, int buflen);
+    int (*dvioctl)(void *dvioblk, unsigned long command, ...);
     // input available interrupt
     int (*dviint)(void);
     // output available interrupt

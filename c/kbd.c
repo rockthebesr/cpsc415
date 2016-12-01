@@ -41,17 +41,17 @@ int kdb_init(void) {
     return -1;
 }
 
-int kdb_read(void* buf, int buflen) {
+int kdb_read(void *dvioblk, void* buf, int buflen) {
     DEBUG("\n");
     return -1;
 }
 
-int kdb_write(void* buf, int buflen) {
+int kdb_write(void *dvioblk, void* buf, int buflen) {
     DEBUG("\n");
     return -1;
 }
 
-int kdb_ioctl(unsigned long command, ...) {
+int kdb_ioctl(void *dvioblk, unsigned long command, ...) {
     DEBUG("\n");
     return -1;
 }
