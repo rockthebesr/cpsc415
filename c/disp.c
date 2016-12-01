@@ -117,23 +117,23 @@ void dispatch(funcptr root_proc) {
             break;
         
         case SYSCALL_OPEN:
-            dispatch_syscall_open();
+            currproc->ret = dispatch_syscall_open();
             break;
             
         case SYSCALL_CLOSE:
-            dispatch_syscall_close();
+            currproc->ret = dispatch_syscall_close();
             break;
             
         case SYSCALL_WRITE:
-            dispatch_syscall_write();
+            currproc->ret = dispatch_syscall_write();
             break;
         
         case SYSCALL_READ:
-            dispatch_syscall_read();
+            currproc->ret = dispatch_syscall_read();
             break;
         
         case SYSCALL_IOCTL:
-            dispatch_syscall_ioctl();
+            currproc->ret = dispatch_syscall_ioctl();
             break;
 
         default:

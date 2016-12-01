@@ -16,6 +16,7 @@ Further details can be found in the documentation above the function headers.
  * Handler for sysopen
  */
 int di_open(void) {
+    DEBUG("\n");
     // TODO: Implement me!
     return -1;
 }
@@ -24,6 +25,7 @@ int di_open(void) {
  * Handler for sysclose
  */
 int di_close(void) {
+    DEBUG("\n");
     // TODO: Implement me!
     return -1;
 }
@@ -32,6 +34,7 @@ int di_close(void) {
  * Handler for syswrite
  */
 int di_write(void) {
+    DEBUG("\n");
     // TODO: Implement me!
     return -1;
 }
@@ -40,6 +43,7 @@ int di_write(void) {
  * Handler for sysread
  */
 int di_read(void) {
+    DEBUG("\n");
     // TODO: Implement me!
     return -1;
 }
@@ -48,6 +52,7 @@ int di_read(void) {
  * Handler for sysioctl
  */
 int di_ioctl(void) {
+    DEBUG("\n");
     // TODO: Implement me!
     return -1;
 }

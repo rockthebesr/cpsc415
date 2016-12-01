@@ -44,7 +44,8 @@ UOBJ = mem.o disp.o ctsw.o syscall.o create.o user.o msg.o sleep.o signal.o
 
 #Add your sources here
 MY_OBJ = pcb.o copyinout.o di_calls.o
-MY_TESTS = memtest.o disptest.o syscalltest.o copyinouttest.o msgtest.o timertest.o signaltest.o
+MY_TESTS = memtest.o \disptest.o syscalltest.o copyinouttest.o msgtest.o \
+timertest.o signaltest.o devtest.o
 
 
 # Don't modiy any of this unless you are really sure
@@ -111,3 +112,4 @@ copyinouttest.o: ../c/tests/copyinouttest.c ../h/xerostest.h
 msgtest.o: ../c/tests/msgtest.c ../h/xerostest.h
 timertest.o: ../c/tests/timertest.c ../h/xerostest.h
 signaltest.o: ../c/tests/signaltest.c ../h/xerostest.h
+devtest.o: ../c/tests/devtest.c ../h/xerostest.h

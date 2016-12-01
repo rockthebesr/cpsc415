@@ -63,6 +63,7 @@ void initproc( void )				/* The beginning */
   //dispatch(&msg_run_all_tests);
   //dispatch(&timer_run_all_tests);
   //dispatch(&signal_run_all_tests);
+  dispatch(&dev_run_all_tests);
 #else
   // enable pre-emption
   initPIT(1000 / TICK_LENGTH_IN_MS);
