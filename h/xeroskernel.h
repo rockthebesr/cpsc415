@@ -241,10 +241,10 @@ typedef struct context_frame {
 
 /* disp calls for devices */
 
-extern int di_open(void);
-extern int di_close(void);
-extern int di_write(void);
-extern int di_read(void);
+extern int di_open(int device_no);
+extern int di_close(int fd);
+extern int di_write(int fd, void *buf, int buflen);
+extern int di_read(int fd, void *buf, int buflen);
 extern int di_ioctl(void);
 
 /* kernel services */

@@ -25,8 +25,8 @@ void di_init_devtable(void) {
 /**
  * Handler for sysopen
  */
-int di_open(void) {
-    DEBUG("\n");
+int di_open(int device_no) {
+    DEBUG("device_no: %d\n", device_no);
     // TODO: Implement me!
     return -1;
 }
@@ -34,8 +34,8 @@ int di_open(void) {
 /**
  * Handler for sysclose
  */
-int di_close(void) {
-    DEBUG("\n");
+int di_close(int fd) {
+    DEBUG("fd: %d\n", fd);
     // TODO: Implement me!
     return -1;
 }
@@ -43,8 +43,8 @@ int di_close(void) {
 /**
  * Handler for syswrite
  */
-int di_write(void) {
-    DEBUG("\n");
+int di_write(int fd, void *buf, int buflen) {
+    DEBUG("fd: %d, buf: 0x%08x, buflen: %d\n", fd, buf, buflen);
     // TODO: Implement me!
     return -1;
 }
@@ -52,8 +52,8 @@ int di_write(void) {
 /**
  * Handler for sysread
  */
-int di_read(void) {
-    DEBUG("\n");
+int di_read(int fd, void *buf, int buflen) {
+    DEBUG("fd: %d, buf: 0x%08x, buflen: %d\n", fd, buf, buflen);
     // TODO: Implement me!
     return -1;
 }
