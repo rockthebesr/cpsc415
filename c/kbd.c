@@ -199,14 +199,14 @@ void keyboard_isr(void) {
 /**
  * Translate the scancodes
  * @param data - raw keycode
- * @return char if a character was input, 0 otherwise
+ * @return ascii char
  */
 static char keyboard_process_scancode(int data) {
     static char lower[0x54] = {
         // 0x00 - 0x07
-           0,    0,  '1',  '2',  '3',  '4',  '5',  '6',
+           0, 0x1B,  '1',  '2',  '3',  '4',  '5',  '6',
         // 0x08 - 0x0F
-         '7',  '8',  '9',  '0',  '-',  '=',    0, '\t',
+         '7',  '8',  '9',  '0',  '-',  '=', 0x08, '\t',
         // 0x10 - 0x17
          'q',  'w',  'e',  'r',  't',  'y',  'u',  'i',
         // 0x18 - 0x1F
@@ -216,22 +216,22 @@ static char keyboard_process_scancode(int data) {
         // 0x28 - 0x2F
         '\'',  '`',    0, '\\',  'z',  'x',  'c',  'v',
         // 0x30 - 0x37
-         'b',  'n',  'm',  ',',  '.',  '/',    0,    0,
+         'b',  'n',  'm',  ',',  '.',  '/',    0, 0x2A,
         // 0x38 - 0x3F
            0,  ' ',    0,    0,    0,    0,    0,    0,
         // 0x40 - 0x47
            0,    0,    0,    0,    0,    0,    0,    0,
         // 0x48 - 0x4F
-           0,    0,  '-',    0,    0,    0,    0,   '+',
+           0,    0, 0x2D,    0,    0,    0, 0x2B,    0,
         // 0x50 - 0x53
            0,    0,    0,    0
     };
 
     static char upper[0x54] = {
         // 0x00 - 0x07
-           0,    0,  '!',  '@',  '#',  '$',  '%',  '^',
+           0, 0x1B,  '!',  '@',  '#',  '$',  '%',  '^',
         // 0x08 - 0x0F
-         '&',  '*',  '(',  ')',  '_',  '+',    0, '\t',
+         '&',  '*',  '(',  ')',  '_',  '+', 0x08, '\t',
         // 0x10 - 0x17
          'Q',  'W',  'E',  'R',  'T',  'Y',  'U',  'I',
         // 0X18 - 0X1F
@@ -245,9 +245,34 @@ static char keyboard_process_scancode(int data) {
         // 0x38 - 0x3F
            0,  ' ',    0,    0,    0,    0,    0,    0,
         // 0x40 - 0x47
+           0,    0,    0,    0,    0,    0,    0, 0x37,
+        // 0x48 - 0x4F
+        0x38, 0x39, 0x2D, 0x34, 0x35, 0x36, 0x2B, 0x31,
+        // 0x50 - 0x53
+        0x32, 0x33, 0x30, 0x2E
+    };
+    
+    static char ctrl[0x54] = {
+        // 0x00 - 0x07
+           0, 0x1B,    0,    0,    0,    0,    0, 0x1E,
+        // 0x08 - 0x0F
+           0,    0,    0,    0, 0x1F,    0, 0x7F,    0,
+        // 0x10 - 0x17
+        0x11, 0x17, 0x05, 0x12, 0x14, 0x19, 0x15, 0x09,
+        // 0X18 - 0X1F
+        0x0F, 0x10, 0x1B, 0x1D, 0x0A,    0, 0x01, 0x13,
+        // 0X20 - 0X27
+        0x04, 0x06, 0x07, 0x08, 0x0A, 0x0B, 0x0C,    0,
+        // 0X28 - 0X2F
+           0,    0,    0, 0x1C, 0x1A, 0x18, 0x03, 0x16,
+        // 0X30 - 0X37
+        0x02, 0x0E, 0x0D,    0,    0,    0,    0, 0x10,
+        // 0x38 - 0x3F
+           0,  ' ',    0,    0,    0,    0,    0,    0,
+        // 0x40 - 0x47
            0,    0,    0,    0,    0,    0,    0,    0,
         // 0x48 - 0x4F
-           0,    0,  '-',    0,    0,    0,    0,   '+',
+           0,    0,    0,    0,    0,    0,    0,    0,
         // 0x50 - 0x53
            0,    0,    0,    0
     };
@@ -255,7 +280,7 @@ static char keyboard_process_scancode(int data) {
     char c = 0;
     if (data < 0x54) {
         if (g_keyboard_keystate_flag & KEYBOARD_STATE_CTRL_FLAG) {
-            c = '^';
+            c = ctrl[data];
         } else if (g_keyboard_keystate_flag & KEYBOARD_STATE_SHIFT_FLAG) {
             c = upper[data];
         } else {
