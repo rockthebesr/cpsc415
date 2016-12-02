@@ -30,6 +30,7 @@ typedef struct kbd_dvioblk {
 static int kbd_ioctl_set_eof(void *args);
 // Only 1 keyboard is allowed to be open at a time
 static int g_kbd_in_use = 0;
+static int g_kbd_done = 0;
 
 static void keyboard_flush_buffer(kbd_task_t *task);
 static char keyboard_process_scancode(int data);
@@ -77,6 +78,7 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
 
 int kbd_init(void) {
     g_kbd_in_use = 0;
+    g_kbd_done = 0;
     g_keyboard_buffer_head = 0;
     g_keyboard_buffer_tail = 0;
     
@@ -92,6 +94,7 @@ int kbd_open(void *dvioblk) {
     }
     
     g_kbd_in_use = 1;
+    g_kbd_done = 0;
     g_keyboard_keystate_flag = 0;
     g_keyboard_eof = KBD_DEFAULT_EOF;
     g_keyboard_echo_flag = ((kbd_dvioblk_t*)dvioblk)->orig_echo_flag;
@@ -114,6 +117,12 @@ int kbd_close(void *dvioblk) {
 
 int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
     DEBUG("buf: 0x%08x, buflen: %d\n", buf, buflen);
+    
+    if (g_kbd_done) {
+        // EOF was encountered
+        return 0;
+    }
+    
     g_kbd_task_queue[g_kbd_task_queue_head].pcb = proc;
     g_kbd_task_queue[g_kbd_task_queue_head].buf = buf;
     g_kbd_task_queue[g_kbd_task_queue_head].i = 0;
@@ -122,7 +131,7 @@ int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
     
     keyboard_flush_buffer(&g_kbd_task_queue[g_kbd_task_queue_head]);
     if (g_kbd_task_queue[g_kbd_task_queue_head].i == buflen) {
-        return 0;
+        return buflen;
     }
     
     return BLOCKED;
@@ -212,7 +221,17 @@ void keyboard_isr(void) {
             if (c == g_keyboard_eof) {
                 kprintf("EOF: 0x%02x\n", g_keyboard_eof);
                 setEnabledKbd(0);
-                // TODO: flush keyboard buffer
+                g_kbd_done = 1;
+                
+                // Flush all queues
+                while (g_kbd_task_queue_tail != g_kbd_task_queue_head) {
+                    task = &g_kbd_task_queue[g_kbd_task_queue_tail];
+                    keyboard_flush_buffer(task);
+                    task->pcb->ret = task->i;
+                    add_pcb_to_queue(task->pcb, PROC_STATE_READY);
+                    g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
+                }
+                
                 return;
             }
             
@@ -222,22 +241,18 @@ void keyboard_isr(void) {
             
             if (g_kbd_task_queue_tail != g_kbd_task_queue_head) {
                 // If there is a task waiting, write to task
-                kprintf("task\n");
                 task = &g_kbd_task_queue[g_kbd_task_queue_tail];
                 ((char*)(task->buf))[task->i] = c;
                 task->i++;
                 if (task->i == task->buflen) {
+                    task->pcb->ret = task->buflen;
                     add_pcb_to_queue(task->pcb, PROC_STATE_READY);
                     g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
                 }
             } else if (((g_keyboard_buffer_head + 1) % KEYBOARD_BUFFER_SIZE) != g_keyboard_buffer_tail) {
                 // Make sure buffer has room
-                kprintf("buffer\n");
                 g_keyboard_buffer[g_keyboard_buffer_head] = c;
                 g_keyboard_buffer_head = (g_keyboard_buffer_head + 1) % KEYBOARD_BUFFER_SIZE;
-            } else {
-                // Discard
-                kprintf("buffer full: %d - %d\n", g_keyboard_buffer_head, g_keyboard_buffer_tail);
             }
         }
     }

@@ -114,7 +114,7 @@ static void devtest_read(void) {
     // Valid case: open and read a FD
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
-    ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), 0);
+    ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), sizeof(buf));
     
     // Error case: read to a closed FD
     ASSERT_EQUAL(sysclose(fd), 0);
