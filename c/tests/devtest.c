@@ -58,7 +58,14 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(fd2, SYSERR);
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(sysclose(fd2), SYSERR);
+
+    // Error case: device does not exist
+    fd = sysopen(-1);
+    ASSERT_EQUAL(fd, SYSERR);
+    fd = sysopen(40);
+    ASSERT_EQUAL(fd, SYSERR);
     
+    // only one of the keyboards can be open at a time
     fd = sysopen(DEVICE_ID_KEYBOARD);
     fd2 = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
     ASSERT_EQUAL(fd, 0);
@@ -215,9 +222,9 @@ static void devtest_ioctl(void) {
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), 0);
     
     // Invalid case: Random ioctl command codes
-    ASSERT_EQUAL(sysioctl(fd, 1), ENOIOCTLCMD);
-    ASSERT_EQUAL(sysioctl(fd, -1), ENOIOCTLCMD);
-    ASSERT_EQUAL(sysioctl(fd, 0), ENOIOCTLCMD);
+    ASSERT_EQUAL(sysioctl(fd, 1), SYSERR);
+    ASSERT_EQUAL(sysioctl(fd, -1), SYSERR);
+    ASSERT_EQUAL(sysioctl(fd, 0), SYSERR);
     
     // Invalid case: ioctl without the parameter... just make sure we don't crash
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF), 0);

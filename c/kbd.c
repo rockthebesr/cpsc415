@@ -170,7 +170,7 @@ int kbd_ioctl(void *dvioblk, unsigned long command, void *args) {
             return g_keyboard_echo_flag;
             
         default:
-            return ENOIOCTLCMD;
+            return SYSERR;
     }
 }
 
@@ -191,7 +191,7 @@ static int kbd_ioctl_set_eof(void *args) {
     va_list v;
     
     if (args == NULL) {
-        return EINVAL;
+        return SYSERR;
     }
     
     v = (va_list)args;

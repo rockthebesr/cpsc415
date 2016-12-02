@@ -157,10 +157,13 @@ void login_proc(void) {
         sysputs("Username: ");
         sysread(fd, user_buf, 8);
 
-        sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO);
+        //        sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO);
         sysputs("\nPassword: \n");
         sysread(fd, pass_buf, 19);
         sysclose(fd);
+
+        kprintf("!%s!\n", user_buf);
+        kprintf("!%s!\n", pass_buf);
 
         if (strcmp(user_buf, valid_user) == 0 &&
             strcmp(pass_buf, valid_pass) == 0) {
