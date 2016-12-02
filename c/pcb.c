@@ -209,7 +209,7 @@ int set_proc_signal(proc_ctrl_block_t *proc, int signal) {
 
     // NULL signal handler indicates to ignore signal
     if (proc->signal_table[signal]) {
-        proc->signals_fired |= (1 << signal);
+        FLAG_BIT_SET(proc->signals_fired, signal);
 
         if (proc->curr_state == PROC_STATE_BLOCKED) {
             resolve_blocking(proc);
@@ -229,14 +229,11 @@ void call_highest_priority_signal(proc_ctrl_block_t *proc) {
 
     // find highest priority signal. Higher place in table -> higher priority
     int signal_num = SIGNAL_TABLE_SIZE - 1;
-    int signal_bit = 1 << signal_num;
-    while ((proc->signals_fired & signal_bit) == 0) {
+    while (FLAG_BIT_CHECK(proc->signals_fired, signal_num) == 0) {
         signal_num--;
-        signal_bit = signal_bit >> 1;
     }
 
-    // clear signal
-    proc->signals_fired &= ~signal_bit;
+    FLAG_BIT_CLEAR(proc->signals_fired, signal_num);
 
     signal(proc->pid, signal_num);
 }

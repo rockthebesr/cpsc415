@@ -38,10 +38,7 @@ static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval);
 #define KEYBOARD_STATE_SHIFT_BIT 0
 #define KEYBOARD_STATE_CTRL_BIT 1
 #define KEYBOARD_STATE_CAPLOCK_BIT 2
-#define FLAG_BIT_CHECK(flag, bitNum) (0x01 & (flag >> bitNum))
-#define FLAG_BIT_SET(flag, bitNum) {flag |= (0x01 << bitNum);}
-#define FLAG_BIT_CLEAR(flag, bitNum) {flag &= ~(0x01 << bitNum);}
-#define FLAG_BIT_TOGGLE(flag, bitNum) {flag ^= (0x01 << bitNum);}
+
 static int g_keyboard_keystate_flag = 0;
 // Circular buffer implementation
 #define KEYBOARD_BUFFER_SIZE 4

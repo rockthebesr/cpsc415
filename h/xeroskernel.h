@@ -55,6 +55,10 @@ void           set_evec(unsigned int xnum, unsigned long handler);
 /* Helpful macros - why aren't these in lib? */
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define FLAG_BIT_CHECK(flag, bitNum) (0x01 & (flag >> bitNum))
+#define FLAG_BIT_SET(flag, bitNum) {flag |= (0x01 << bitNum);}
+#define FLAG_BIT_CLEAR(flag, bitNum) {flag &= ~(0x01 << bitNum);}
+#define FLAG_BIT_TOGGLE(flag, bitNum) {flag ^= (0x01 << bitNum);}
 
 /* Helpful debug macros */
 #ifdef TESTING
