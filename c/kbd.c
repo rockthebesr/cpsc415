@@ -240,8 +240,9 @@ void keyboard_isr(void) {
                 task = &g_kbd_task_queue[g_kbd_task_queue_tail];
                 ((char*)(task->buf))[task->i] = c;
                 task->i++;
-                if (task->i == task->buflen) {
-                    task->pcb->ret = task->buflen;
+                // Unblock once we've filled the buffer, OR  we encounter \n
+                if (task->i == task->buflen || c == '\n') {
+                    task->pcb->ret = task->i;
                     add_pcb_to_queue(task->pcb, PROC_STATE_READY);
                     g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
                 }
@@ -255,6 +256,8 @@ void keyboard_isr(void) {
 }
 
 static void keyboard_flush_buffer(kbd_task_t *task) {
+    char lastval;
+    
     if (task == NULL) {
         return;
     }
@@ -265,9 +268,15 @@ static void keyboard_flush_buffer(kbd_task_t *task) {
             return;
         }
         
-        ((char*)(task->buf))[task->i] = g_keyboard_buffer[g_keyboard_buffer_tail];
+        lastval = g_keyboard_buffer[g_keyboard_buffer_tail];
+        ((char*)(task->buf))[task->i] = lastval;
         task->i++;
         g_keyboard_buffer_tail = (g_keyboard_buffer_tail + 1) % KEYBOARD_BUFFER_SIZE;
+        
+        // Stop copying on \n
+        if (lastval == '\n') {
+            return;
+        }
     }
 }
 
