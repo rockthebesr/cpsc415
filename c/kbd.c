@@ -116,8 +116,6 @@ int kbd_close(void *dvioblk) {
 }
 
 int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
-    DEBUG("buf: 0x%08x, buflen: %d\n", buf, buflen);
-    
     if (g_kbd_done) {
         // EOF was encountered
         return 0;
@@ -172,13 +170,11 @@ int kbd_ioctl(void *dvioblk, unsigned long command, void *args) {
 
 // input available interrupt
 int kbd_iint(void) {
-    DEBUG("\n");
     return -1;
 }
 
 // output available interrupt
 int kbd_oint(void) {
-    DEBUG("\n");
     return -1;
 }
 

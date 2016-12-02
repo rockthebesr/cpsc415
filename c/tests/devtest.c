@@ -12,29 +12,14 @@ Called from outside:
 static void devtest_open_close(void);
 static void devtest_write(void);
 static void devtest_read(void);
+static void devtest_read_err(void);
 static void devtest_ioctl(void);
 
 void dev_run_all_tests(void) {
-    int fd;
-    char buf[20] = {'\0'};
-    
-    fd = sysopen(DEVICE_ID_KEYBOARD);
-    sysread(fd, buf, 1);
-    DEBUG("Returned: %s\n", buf);
-    sysread(fd, buf, 2);
-    DEBUG("Returned: %s\n", buf);
-    sysread(fd, buf, 4);
-    DEBUG("Returned: %s\n", buf);
-    sysread(fd, buf, 8);
-    DEBUG("Returned: %s\n", buf);
-    sysread(fd, buf, 16);
-    DEBUG("Returned: %s\n", buf);
-    sysclose(fd);
-    
-    
     devtest_open_close();
     devtest_write();
     devtest_read();
+    devtest_read_err();
     devtest_ioctl();
     
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
@@ -107,16 +92,43 @@ static void devtest_write(void) {
 
 static void devtest_read(void) {
     int fd;
-    char buf[4];
-    
-    DEBUG("buf addr: 0x%08x, sizeof(buf): %d\n", (unsigned long)buf, sizeof(buf));
+    int bytes;
+    char buf[20] = {'\0'};
     
     // Valid case: open and read a FD
+    DEBUG("Please type on the keyboard\n");
     fd = sysopen(DEVICE_ID_KEYBOARD);
-    ASSERT_EQUAL(fd, 0);
-    ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), sizeof(buf));
+    
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 1);
+    DEBUG("Returned (%d): %s\n", bytes, buf);
+    
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 2);
+    DEBUG("Returned (%d): %s\n", bytes, buf);
+    
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 4);
+    DEBUG("Returned (%d): %s\n", bytes, buf);
+    
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 8);
+    DEBUG("Returned (%d): %s\n", bytes, buf);
+    
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 16);
+    DEBUG("Returned (%d): %s\n", bytes, buf);
+    
+    sysclose(fd);
+}
+
+static void devtest_read_err(void) {
+    int fd;
+    char buf[4];
     
     // Error case: read to a closed FD
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    ASSERT_EQUAL(fd, 0);
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), EBADF);
     
