@@ -12,16 +12,10 @@
 #define KEYBOARD_PORT_DATA_SCANCODE_MASK 0x0FF
 
 typedef struct kbd_dvioblk {
-    char eof;
-    int echo_flag; // 1 for on, 0 for off
     int orig_echo_flag;
 } kbd_dvioblk_t;
 
-static int kbd_ioctl_set_eof(kbd_dvioblk_t *dvioblk, void *args);
-static int kbd_ioctl_enable_echo(kbd_dvioblk_t *dvioblk);
-static int kbd_ioctl_disable_echo(kbd_dvioblk_t *dvioblk);
-static int kbd_ioctl_get_eof(kbd_dvioblk_t *dvioblk);
-static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk);
+static int kbd_ioctl_set_eof(void *args);
 // Only 1 keyboard is allowed to be open at a time
 static int g_kbd_in_use = 0;
 
@@ -39,7 +33,8 @@ static int g_keyboard_keystate_flag = 0;
 static char g_keyboard_buffer[4] = {0};
 static int g_keyboard_buffer_head = 0;
 static int g_keyboard_buffer_tail = 0;
-static kbd_dvioblk_t *g_keyboard_config = NULL;
+static char g_keyboard_eof;
+static char g_keyboard_echo_flag; // 1 for on, 0 for off
 
 /**
  * Fills in a device table entry with keyboard-device specific values
@@ -60,8 +55,6 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
     // Note: this kmalloc will intentionally never be kfree'd
     entry->dvioblk = (kbd_dvioblk_t*)kmalloc(sizeof(kbd_dvioblk_t));
     ASSERT(entry->dvioblk != NULL);
-    ((kbd_dvioblk_t*)entry->dvioblk)->eof = KBD_DEFAULT_EOF;
-    ((kbd_dvioblk_t*)entry->dvioblk)->echo_flag = echo_flag;
     ((kbd_dvioblk_t*)entry->dvioblk)->orig_echo_flag = echo_flag;
 }
 
@@ -87,9 +80,8 @@ int kbd_open(void *dvioblk) {
     
     g_kbd_in_use = 1;
     g_keyboard_keystate_flag = 0;
-    g_keyboard_config = (kbd_dvioblk_t*)dvioblk;
-    g_keyboard_config->eof = KBD_DEFAULT_EOF;
-    g_keyboard_config->echo_flag = g_keyboard_config->orig_echo_flag;
+    g_keyboard_eof = KBD_DEFAULT_EOF;
+    g_keyboard_echo_flag = ((kbd_dvioblk_t*)dvioblk)->orig_echo_flag;
     setEnabledKbd(1);
     return 0;
 }
@@ -103,7 +95,6 @@ int kbd_close(void *dvioblk) {
     }
     
     g_kbd_in_use = 0;
-    g_keyboard_config = NULL;
     setEnabledKbd(0);
     return 0;
 }
@@ -125,15 +116,22 @@ int kbd_write(void *dvioblk, void* buf, int buflen) {
 int kbd_ioctl(void *dvioblk, unsigned long command, void *args) {
     switch(command) {
         case KEYBOARD_IOCTL_SET_EOF:
-            return kbd_ioctl_set_eof((kbd_dvioblk_t*)dvioblk, args);
+            return kbd_ioctl_set_eof(args);
+            
         case KEYBOARD_IOCTL_ENABLE_ECHO:
-            return kbd_ioctl_enable_echo((kbd_dvioblk_t*)dvioblk);
+            g_keyboard_echo_flag = 1;
+            return 0;
+            
         case KEYBOARD_IOCTL_DISABLE_ECHO:
-            return kbd_ioctl_disable_echo((kbd_dvioblk_t*)dvioblk);
+            g_keyboard_echo_flag = 0;
+            return 0;
+            
         case KEYBOARD_IOCTL_GET_EOF:
-            return kbd_ioctl_get_eof((kbd_dvioblk_t*)dvioblk);
+            return (int)g_keyboard_eof;
+            
         case KEYBOARD_IOCTL_GET_ECHO:
-            return kbd_ioctl_get_echo_flag((kbd_dvioblk_t*)dvioblk);
+            return g_keyboard_echo_flag;
+            
         default:
             return ENOIOCTLCMD;
     }
@@ -154,8 +152,7 @@ int kbd_oint(void) {
 /**
  * ioctl commands
  */
-static int kbd_ioctl_set_eof(kbd_dvioblk_t *dvioblk, void *args) {
-    ASSERT(dvioblk != NULL);
+static int kbd_ioctl_set_eof(void *args) {
     va_list v;
     
     if (args == NULL) {
@@ -164,31 +161,9 @@ static int kbd_ioctl_set_eof(kbd_dvioblk_t *dvioblk, void *args) {
     
     v = (va_list)args;
     // the va_arg parameter requires int, compiler warns against using char
-    ((kbd_dvioblk_t*)dvioblk)->eof = (char)va_arg(v, int);
+    g_keyboard_eof = (char)va_arg(v, int);
     
     return 0;
-}
-
-static int kbd_ioctl_enable_echo(kbd_dvioblk_t *dvioblk) {
-    ASSERT(dvioblk != NULL);
-    ((kbd_dvioblk_t*)dvioblk)->echo_flag = 1;
-    return 0;
-}
-
-static int kbd_ioctl_disable_echo(kbd_dvioblk_t *dvioblk) {
-    ASSERT(dvioblk != NULL);
-    ((kbd_dvioblk_t*)dvioblk)->echo_flag = 0;
-    return 0;
-}
-
-static int kbd_ioctl_get_eof(kbd_dvioblk_t *dvioblk) {
-    ASSERT(dvioblk != NULL);
-    return (int)((kbd_dvioblk_t*)dvioblk)->eof;
-}
-
-static int kbd_ioctl_get_echo_flag(kbd_dvioblk_t *dvioblk) {
-    ASSERT(dvioblk != NULL);
-    return (int)((kbd_dvioblk_t*)dvioblk)->echo_flag;
 }
 
 /**
@@ -204,18 +179,13 @@ void keyboard_isr(void) {
     isDataPresent = KEYBOARD_PORT_CONTROL_READY_MASK & inb(KEYBOARD_PORT_CONTROL);
     data = KEYBOARD_PORT_DATA_SCANCODE_MASK & inb(KEYBOARD_PORT_DATA);
     
-    // Make sure we have some valid kbd_dvioblk_t config
-    if (g_keyboard_config == NULL) {
-        return;
-    }
-    
     if (isDataPresent) {
         c = keyboard_process_scancode(data);
         
         if (c != 0) {
             // Check EOF
-            if (c == g_keyboard_config->eof) {
-                kprintf("EOF: 0x%02x\n", g_keyboard_config->eof);
+            if (c == g_keyboard_eof) {
+                kprintf("EOF: 0x%02x\n", g_keyboard_eof);
                 setEnabledKbd(0);
                 // TODO: flush keyboard buffer
                 return;
@@ -226,7 +196,7 @@ void keyboard_isr(void) {
                 g_keyboard_buffer[g_keyboard_buffer_head] = c;
                 g_keyboard_buffer_head = (g_keyboard_buffer_head + 1) % KEYBOARD_BUFFER_SIZE;
                 
-                if (g_keyboard_config->echo_flag) {
+                if (g_keyboard_echo_flag) {
                     kprintf("%c", c);
                 }
             } else {
