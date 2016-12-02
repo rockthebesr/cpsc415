@@ -6,8 +6,7 @@
 #include <stdarg.h>
 #include <i386.h>
 
-// TODO: Default EOF should be ctrl-D
-#define KBD_DEFAULT_EOF 0
+#define KBD_DEFAULT_EOF ((char)0x04)
 
 #define KEYBOARD_PORT_CONTROL_READY_MASK 0x01
 #define KEYBOARD_PORT_DATA_SCANCODE_MASK 0x0FF
@@ -15,6 +14,7 @@
 typedef struct kbd_dvioblk {
     char eof;
     int echo_flag; // 1 for on, 0 for off
+    int orig_echo_flag;
 } kbd_dvioblk_t;
 
 static int kbd_ioctl_set_eof(kbd_dvioblk_t *dvioblk, void *args);
@@ -34,7 +34,12 @@ static char keyboard_process_scancode(int data);
 #define FLAG_BIT_CLEAR(flag, bitNum) {flag &= ~(0x01 << bitNum);}
 #define FLAG_BIT_TOGGLE(flag, bitNum) {flag ^= (0x01 << bitNum);}
 static int g_keyboard_keystate_flag = 0;
-
+// Circular buffer implementation
+#define KEYBOARD_BUFFER_SIZE 4
+static char g_keyboard_buffer[4] = {0};
+static int g_keyboard_buffer_head = 0;
+static int g_keyboard_buffer_tail = 0;
+static kbd_dvioblk_t *g_keyboard_config = NULL;
 
 /**
  * Fills in a device table entry with keyboard-device specific values
@@ -55,8 +60,9 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
     // Note: this kmalloc will intentionally never be kfree'd
     entry->dvioblk = (kbd_dvioblk_t*)kmalloc(sizeof(kbd_dvioblk_t));
     ASSERT(entry->dvioblk != NULL);
-    ((kbd_dvioblk_t*)entry->dvioblk)->eof = (char)KBD_DEFAULT_EOF;
+    ((kbd_dvioblk_t*)entry->dvioblk)->eof = KBD_DEFAULT_EOF;
     ((kbd_dvioblk_t*)entry->dvioblk)->echo_flag = echo_flag;
+    ((kbd_dvioblk_t*)entry->dvioblk)->orig_echo_flag = echo_flag;
 }
 
 /**
@@ -65,6 +71,9 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
 
 int kbd_init(void) {
     g_kbd_in_use = 0;
+    g_keyboard_buffer_head = 0;
+    g_keyboard_buffer_tail = KEYBOARD_BUFFER_SIZE - 1;
+    
     // Read data from the ports, in case some interrupts triggered in the past
     inb(KEYBOARD_PORT_DATA);
     inb(KEYBOARD_PORT_CONTROL);
@@ -72,15 +81,15 @@ int kbd_init(void) {
 }
 
 int kbd_open(void *dvioblk) {
-    // unused
-    (void)dvioblk;
-    
     if (g_kbd_in_use) {
         return EBUSY;
     }
     
     g_kbd_in_use = 1;
     g_keyboard_keystate_flag = 0;
+    g_keyboard_config = (kbd_dvioblk_t*)dvioblk;
+    g_keyboard_config->eof = KBD_DEFAULT_EOF;
+    g_keyboard_config->echo_flag = g_keyboard_config->orig_echo_flag;
     setEnabledKbd(1);
     return 0;
 }
@@ -94,6 +103,7 @@ int kbd_close(void *dvioblk) {
     }
     
     g_kbd_in_use = 0;
+    g_keyboard_config = NULL;
     setEnabledKbd(0);
     return 0;
 }
@@ -193,10 +203,36 @@ void keyboard_isr(void) {
     
     isDataPresent = KEYBOARD_PORT_CONTROL_READY_MASK & inb(KEYBOARD_PORT_CONTROL);
     data = KEYBOARD_PORT_DATA_SCANCODE_MASK & inb(KEYBOARD_PORT_DATA);
+    
+    // Make sure we have some valid kbd_dvioblk_t config
+    if (g_keyboard_config == NULL) {
+        return;
+    }
+    
     if (isDataPresent) {
         c = keyboard_process_scancode(data);
+        
         if (c != 0) {
-            kprintf("%c", c);
+            // Check EOF
+            if (c == g_keyboard_config->eof) {
+                kprintf("EOF: 0x%02x\n", g_keyboard_config->eof);
+                setEnabledKbd(0);
+                // TODO: flush keyboard buffer
+                return;
+            }
+            
+            // Make sure buffer has room
+            if (g_keyboard_buffer_head != g_keyboard_buffer_tail) {
+                g_keyboard_buffer[g_keyboard_buffer_head] = c;
+                g_keyboard_buffer_head = (g_keyboard_buffer_head + 1) % KEYBOARD_BUFFER_SIZE;
+                
+                if (g_keyboard_config->echo_flag) {
+                    kprintf("%c", c);
+                }
+            } else {
+                // Discard
+                kprintf("buffer full: %d - %d\n", g_keyboard_buffer_head, g_keyboard_buffer_tail);
+            }
         }
     }
 }
