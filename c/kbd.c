@@ -246,14 +246,6 @@ void keyboard_isr(void) {
             if (g_kbd_task_queue_tail != g_kbd_task_queue_head) {
                 // If there is a task waiting, write to task
                 task = &g_kbd_task_queue[g_kbd_task_queue_tail];
-                
-                // If we encounter \n, unblock the proc. Don't buffer in \n
-                if (c == '\n') {
-                    keyboard_unblock_proc(task->pcb, task->i);
-                    g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
-                    return;
-                }
-                
                 ((char*)(task->buf))[task->i] = c;
                 task->i++;
                 
