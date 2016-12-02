@@ -4,17 +4,29 @@ Called from user processes:
     syscreate() - create a new process
     sysyield() - pause execution and allow another process to run
     sysstop() - stops process
+
     sysgetpid() - returns current process's pid
-    syskill() - delivers a signal to a process
+    sysputs() - allows processes to perform synchronized output
+
+    syssleep() - allows process to sleep for a number of milliseconds
     syswait() - waits for a process to terminate
+    sysgetcputimes() - fills a processStatuses block with all non-stopped procs
+
     syssend() - sends data to a particular process
     sysrecv() - receives data delivered by syssend()
     syssendbuf() - generalized sysend, for sending > 4 bytes
     sysrecvbuf() - generalized sysrecv, for receiving > 4 bytes
-    syssleep() - allows process to sleep for a number of milliseconds
-    sysgetcputimes() - fills a processStatuses block with all non-stopped procs
+
+    syskill() - delivers a signal to a process
     syssighandler() - registers the handler as a signal handler
     syssigreturn() - restores a process's context after a signal is handled
+
+    sysopen() - open a device
+    sysclose() - close a file descriptor
+    syswrite() - wrtie to a file descriptor
+    sysread() - read from a file descriptor
+    sysioctl() - execute a device specific control command
+
 
 Helper functions:
     syscallX - prepare stack for syscall with X parameters
