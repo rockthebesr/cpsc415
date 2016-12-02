@@ -34,6 +34,7 @@ static int g_kbd_done = 0;
 
 static void keyboard_flush_buffer(kbd_task_t *task);
 static char keyboard_process_scancode(int data);
+static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval);
 #define KEYBOARD_STATE_SHIFT_BIT 0
 #define KEYBOARD_STATE_CTRL_BIT 1
 #define KEYBOARD_STATE_CAPLOCK_BIT 2
@@ -231,8 +232,7 @@ void keyboard_isr(void) {
                 while (g_kbd_task_queue_tail != g_kbd_task_queue_head) {
                     task = &g_kbd_task_queue[g_kbd_task_queue_tail];
                     keyboard_flush_buffer(task);
-                    task->pcb->ret = task->i;
-                    add_pcb_to_queue(task->pcb, PROC_STATE_READY);
+                    keyboard_unblock_proc(task->pcb, task->i);
                     g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
                 }
                 
@@ -246,12 +246,20 @@ void keyboard_isr(void) {
             if (g_kbd_task_queue_tail != g_kbd_task_queue_head) {
                 // If there is a task waiting, write to task
                 task = &g_kbd_task_queue[g_kbd_task_queue_tail];
+                
+                // If we encounter \n, unblock the proc. Don't buffer in \n
+                if (c == '\n') {
+                    keyboard_unblock_proc(task->pcb, task->i);
+                    g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
+                    return;
+                }
+                
                 ((char*)(task->buf))[task->i] = c;
                 task->i++;
+                
                 // Unblock once we've filled the buffer, OR  we encounter \n
                 if (task->i == task->buflen || c == '\n') {
-                    task->pcb->ret = task->i;
-                    add_pcb_to_queue(task->pcb, PROC_STATE_READY);
+                    keyboard_unblock_proc(task->pcb, task->i);
                     g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
                 }
             } else if (((g_keyboard_buffer_head + 1) % KEYBOARD_BUFFER_SIZE) != g_keyboard_buffer_tail) {
@@ -261,6 +269,11 @@ void keyboard_isr(void) {
             }
         }
     }
+}
+
+static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval) {
+    pcb->ret = retval;
+    add_pcb_to_queue(pcb, PROC_STATE_READY);
 }
 
 static void keyboard_flush_buffer(kbd_task_t *task) {
