@@ -154,17 +154,16 @@ void dispatch(funcptr root_proc) {
  * @return On success, pid of process created. Error code on failure.
  */
 static int dispatch_syscall_create(void) {
-    funcptr func;
-    int stack;
+    funcptr func = (funcptr)currproc->args[0];
+    int stack = currproc->args[1];
     int result;
     
-    result = verify_usrptr((void*)currproc->args[0], sizeof(funcptr));
+    // not a perfect check, but best we can do
+    result = verify_usrptr((void*)func, sizeof(funcptr));
     if (result != OK) {
         return result;
     }
-    
-    func = (funcptr)currproc->args[0];
-    stack = currproc->args[1];
+
     return create(func, stack);
 }
 
@@ -357,6 +356,7 @@ static int dispatch_syscall_sighandler(void) {
         return SYSHANDLER_INVALID_SIGNAL;
     }
 
+    // not a perfect check, but best we can do
     if (verify_usrptr(new_handler, sizeof(funcptr_args1)) != OK ||
         verify_usrptr(old_handler, sizeof(funcptr_args1*)) != OK) {
         return SYSHANDLER_INVALID_FUNCPTR;
@@ -408,28 +408,36 @@ static int dispatch_syscall_close(void) {
 
 /**
  * Handler for syswrite
+ * @return number of bytes written on success, -1 on failure
  */
 static int dispatch_syscall_write(void) {
-    int result = verify_usrptr((void*)currproc->args[1], sizeof(void*));
+    int fd = (int)currproc->args[0];
+    void* buf = (void*)currproc->args[1];
+    int buflen = (int)currproc->args[2];
+
+    int result = verify_usrptr(buf, buflen);
     if (result != OK) {
-        return result;
+        return SYSERR;
     }
     
-    return di_write(currproc, (int)currproc->args[0], (void*)currproc->args[1],
-        (int)currproc->args[2]);
+    return di_write(currproc, fd, buf, buflen);
 }
 
 /**
  * Handler for sysread
+ * @return number of bytes read on success, -1 on failure
  */
 static int dispatch_syscall_read(void) {
-    int result = verify_usrptr((void*)currproc->args[1], sizeof(void*));
+    int fd = (int)currproc->args[0];
+    void* buf = (void*)currproc->args[1];
+    int buflen = (int)currproc->args[2];
+
+    int result = verify_usrptr(buf, buflen);
     if (result != OK) {
-        return result;
+        return SYSERR;
     }
     
-    result = di_read(currproc, (int)currproc->args[0], (void*)currproc->args[1],
-        (int)currproc->args[2]);
+    result = di_read(currproc, fd, buf, buflen);
     
     if (result == BLOCKERR) {
         currproc->curr_state = PROC_STATE_BLOCKED;
@@ -444,8 +452,14 @@ static int dispatch_syscall_read(void) {
 
 /**
  * Handler for sysioctl
+ * @return 0 on success, -1 on failure
  */
 static int dispatch_syscall_ioctl(void) {
-    return di_ioctl(currproc, (int)currproc->args[0],
-        (unsigned long)currproc->args[1], (void*)currproc->args[2]);
+    int fd = (int)currproc->args[0];
+    unsigned long command = (unsigned long)currproc->args[1];
+
+    // actually a va_list, each arg will be validated on use in device driver
+    void *args = (void*)currproc->args[2];
+
+    return di_ioctl(currproc, fd, command, args);
 }

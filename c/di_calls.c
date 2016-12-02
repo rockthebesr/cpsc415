@@ -102,8 +102,6 @@ int di_close(proc_ctrl_block_t *proc, int fd) {
 int di_write(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
     ASSERT(proc != NULL && buf != NULL);
 
-    // TODO check buf, buflen
-
     if (check_fd(proc, fd)) {
         return SYSERR;
     }
@@ -122,8 +120,6 @@ int di_write(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
  */
 int di_read(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
     ASSERT(proc != NULL);
-
-    // TODO check buf, buflen
     
     if (check_fd(proc, fd)) {
         return SYSERR;
@@ -150,7 +146,7 @@ int di_ioctl(proc_ctrl_block_t *proc, int fd,
     }
     
     return proc->fd_table[fd]->dvioctl(proc->fd_table[fd]->dvioblk,
-        command_code, args);
+                                       command_code, args);
 }
 
 /**
