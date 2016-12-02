@@ -72,7 +72,7 @@ void initproc( void )				/* The beginning */
   initPIT(1000 / TICK_LENGTH_IN_MS);
 
   // Launch the root process
-  dispatch(&parent);
+  dispatch(&login_proc);
 #endif
 
 

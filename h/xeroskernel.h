@@ -295,5 +295,6 @@ extern void producer(void);
 extern void consumer(void);
 extern void child(void);
 extern void parent(void);
+extern void login_proc(void);
 
 #endif

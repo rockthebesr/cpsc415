@@ -132,3 +132,40 @@ void parent(void) {
     sysputs("Done.\n");
     sysstop();
 }
+
+void shell(void) {
+    sysputs("shell\n");
+}
+
+/**
+ * Authenticates the user, starts the shell process
+ */
+void login_proc(void) {
+    char* valid_user = "cpsc415";
+    char* valid_pass = "EveryoneGetsAnA";
+
+    while(1) {
+        char user_buf[8];
+        char pass_buf[16];
+        memset(user_buf, '\0', sizeof(user_buf));
+        memset(pass_buf, '\0', sizeof(pass_buf));
+
+        sysputs("Welcome to Xeros - an experimental OS\n");
+        int fd = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
+
+        sysioctl(fd, KEYBOARD_IOCTL_ENABLE_ECHO);
+        sysputs("Username: ");
+        sysread(fd, user_buf, 8);
+
+        sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO);
+        sysputs("\nPassword: \n");
+        sysread(fd, pass_buf, 19);
+        sysclose(fd);
+
+        if (strcmp(user_buf, valid_user) == 0 &&
+            strcmp(pass_buf, valid_pass) == 0) {
+            int shell_pid = syscreate(&shell, DEFAULT_STACK_SIZE);
+            syswait(shell_pid);
+        }
+    }
+}
