@@ -81,6 +81,8 @@ int kbd_init(void) {
     g_kbd_done = 0;
     g_keyboard_buffer_head = 0;
     g_keyboard_buffer_tail = 0;
+    g_kbd_task_queue_head = 0;
+    g_kbd_task_queue_tail = 0;
     
     // Read data from the ports, in case some interrupts triggered in the past
     inb(KEYBOARD_PORT_DATA);
@@ -95,6 +97,10 @@ int kbd_open(void *dvioblk) {
     
     g_kbd_in_use = 1;
     g_kbd_done = 0;
+    g_keyboard_buffer_head = 0;
+    g_keyboard_buffer_tail = 0;
+    g_kbd_task_queue_head = 0;
+    g_kbd_task_queue_tail = 0;
     g_keyboard_keystate_flag = 0;
     g_keyboard_eof = KBD_DEFAULT_EOF;
     g_keyboard_echo_flag = ((kbd_dvioblk_t*)dvioblk)->orig_echo_flag;
@@ -116,11 +122,6 @@ int kbd_close(void *dvioblk) {
 }
 
 int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
-    if (g_kbd_done) {
-        // EOF was encountered
-        return 0;
-    }
-    
     g_kbd_task_queue[g_kbd_task_queue_head].pcb = proc;
     g_kbd_task_queue[g_kbd_task_queue_head].buf = buf;
     g_kbd_task_queue[g_kbd_task_queue_head].i = 0;
@@ -130,6 +131,13 @@ int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
     keyboard_flush_buffer(&g_kbd_task_queue[g_kbd_task_queue_head]);
     if (g_kbd_task_queue[g_kbd_task_queue_head].i == buflen) {
         return buflen;
+    }
+    
+    if (g_kbd_done) {
+        // EOF was encountered. We have to do this check
+        // here in case our buffer has a couple of stray \n characters,
+        // which would require multiple reads to fully flush
+        return g_kbd_task_queue[g_kbd_task_queue_head].i;
     }
     
     return BLOCKED;
