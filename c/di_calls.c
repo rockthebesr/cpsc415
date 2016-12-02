@@ -1,6 +1,7 @@
 /* di_calls.c: Device calls
 
 Called from outside:
+    di_init_devtable() - initializes device table, all devices within it
     di_open() - opens device
     di_close() - close fd
     di_write() - write to device
@@ -16,9 +17,14 @@ Further details can be found in the documentation above the function headers.
 // Device table
 static devsw_t g_device_table[NUM_DEVICES_ID_ENUMS];
 
+static int check_fd(proc_ctrl_block_t* proc, int fd);
+
+/**
+ * Initializes device table, all devices within it
+ */
 void di_init_devtable(void) {
-    kbd_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD], 1);
     kbd_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD_NO_ECHO], 0);
+    kbd_devsw_create(&g_device_table[DEVICE_ID_KEYBOARD], 1);
     
     for (int i = 0; i < NUM_DEVICES_ID_ENUMS; i++) {
         g_device_table[i].dvinit();
@@ -27,90 +33,132 @@ void di_init_devtable(void) {
 
 
 /**
- * Handler for sysopen
+ * Opens a device
+ * @param proc - process opening the device
+ * @param device_no - device identifier from device table
+ * @return file descriptor on success, -1 on failure
  */
 int di_open(proc_ctrl_block_t *proc, int device_no) {
-    int i;
-    int result;
-    
+    int fd;
+
     ASSERT(proc != NULL);
     
     if (device_no < 0 || device_no >= NUM_DEVICES_ID_ENUMS) {
-        return ENODEV;
+        return SYSERR;
     }
     
-    for (i = 0; i < PCB_NUM_FDS; i++) {
-        if (proc->fd_table[i] == NULL) {
+    for (fd = 0; fd < PCB_NUM_FDS; fd++) {
+        if (proc->fd_table[fd] == NULL) {
             break;
         }
     }
     
-    if (i >= PCB_NUM_FDS) {
-        return EMFILE;
+    if (fd >= PCB_NUM_FDS) {
+        return SYSERR;
     }
     
-    proc->fd_table[i] = &g_device_table[device_no];
-    result = proc->fd_table[i]->dvopen(proc->fd_table[i]->dvioblk);
-    if (result != 0) {
-        proc->fd_table[i] = NULL;
-        return result;
+    devsw_t *entry = &g_device_table[device_no];
+    int result = entry->dvopen(entry->dvioblk);
+    if (result) {
+        return SYSERR;
     }
-    
-    return 0;
+
+    proc->fd_table[fd] = entry;
+    return fd;
 }
 
 /**
- * Handler for sysclose
+ * Closes a device
+ * @param proc - process owning the fd
+ * @param fd - process's file descriptor for the open device
+ * @return 0 on success, -1 on failure
  */
 int di_close(proc_ctrl_block_t *proc, int fd) {
     devsw_t *entry;
     ASSERT(proc != NULL);
     
-    if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
-        return EBADF;
+    if (check_fd(proc, fd)) {
+        return SYSERR;
     }
     
     entry = proc->fd_table[fd];
+    int result = entry->dvclose(entry->dvioblk);
+    if (result) {
+        return SYSERR;
+    }
+
     proc->fd_table[fd] = NULL;
-    return entry->dvclose(entry->dvioblk);
+    return 0;
 }
 
 /**
- * Handler for syswrite
+ * Writes to a device
+ * @param proc - process owning the fd
+ * @param fd - process's file descriptor for the open device
+ * @param buf - buffer to write data from
+ * @param buflen - length of data to write
+ * @return number of bytes written, or -1 on failure
  */
 int di_write(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
-    ASSERT(proc != NULL);
-    
-    if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
-        return EBADF;
+    ASSERT(proc != NULL && buf != NULL);
+
+    // TODO check buf, buflen
+
+    if (check_fd(proc, fd)) {
+        return SYSERR;
     }
-    
-    return proc->fd_table[fd]->dvwrite(proc, proc->fd_table[fd]->dvioblk, buf, buflen);
+
+    return proc->fd_table[fd]->dvwrite(proc, proc->fd_table[fd]->dvioblk,
+                                       buf, buflen);
 }
 
 /**
- * Handler for sysread
+ * Reads from a device
+ * @param proc - process owning the fd
+ * @param fd - process's file descriptor for the open device
+ * @param buf - buffer to read data into
+ * @param buflen - length of data to read
+ * @return number of bytes read, or -1 on failure
  */
 int di_read(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
     ASSERT(proc != NULL);
+
+    // TODO check buf, buflen
     
-    if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
-        return EBADF;
+    if (check_fd(proc, fd)) {
+        return SYSERR;
     }
     
-    return proc->fd_table[fd]->dvread(proc, proc->fd_table[fd]->dvioblk, buf, buflen);
+    return proc->fd_table[fd]->dvread(proc, proc->fd_table[fd]->dvioblk,
+                                      buf, buflen);
 }
 
 /**
- * Handler for sysioctl
+ * Device specific control
+ * @param proc - process owning the fd
+ * @param fd - process's file descriptor for the open device
+ * @param command_code - device specific command
+ * @param args - variable number of arguments for command
+ * @return 0 on success, or -1 on failure
  */
-int di_ioctl(proc_ctrl_block_t *proc, int fd, unsigned long command_code, void *args) {
+int di_ioctl(proc_ctrl_block_t *proc, int fd,
+             unsigned long command_code, void *args) {
     ASSERT(proc != NULL);
-    
-    if (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL) {
-        return EBADF;
+
+    if (check_fd(proc, fd)) {
+        return SYSERR;
     }
     
     return proc->fd_table[fd]->dvioctl(proc->fd_table[fd]->dvioblk,
         command_code, args);
+}
+
+/**
+ * Ensures a file descriptor is valid
+ * @param proc - proc who owns fd
+ * @param fd - file descriptor to check
+ * @return 0 on success, 1 on failure
+ */
+static int check_fd(proc_ctrl_block_t* proc, int fd) {
+    return (fd < 0 || fd >= PCB_NUM_FDS || proc->fd_table[fd] == NULL);
 }

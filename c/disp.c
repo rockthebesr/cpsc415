@@ -390,16 +390,20 @@ static void dispatch_syscall_sigreturn(void) {
 
 /**
  * Handler for sysopen
+ * @return file descriptor on success, -1 on error
  */
 static int dispatch_syscall_open(void) {
-    return di_open(currproc, (int)currproc->args[0]);
+    int device_no = (int)currproc->args[0];
+    return di_open(currproc, device_no);
 }
 
 /**
  * Handler for sysclose
+ * @return 0 on success, -1 on error
  */
 static int dispatch_syscall_close(void) {
-    return di_close(currproc, (int)currproc->args[0]);
+    int fd = (int)currproc->args[0];
+    return di_close(currproc, fd);
 }
 
 /**

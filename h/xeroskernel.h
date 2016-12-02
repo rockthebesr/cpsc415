@@ -82,8 +82,8 @@ typedef struct proc_ctrl_block proc_ctrl_block_t;
 
 /* Devices */
 typedef enum device_id_enum {
-    DEVICE_ID_KEYBOARD = 0,
-    DEVICE_ID_KEYBOARD_NO_ECHO,
+    DEVICE_ID_KEYBOARD_NO_ECHO = 0,
+    DEVICE_ID_KEYBOARD,
     NUM_DEVICES_ID_ENUMS
 } device_id_enum_t;
 
@@ -265,7 +265,8 @@ extern int di_open(proc_ctrl_block_t *proc, int device_no);
 extern int di_close(proc_ctrl_block_t *proc, int fd);
 extern int di_write(proc_ctrl_block_t *proc, int fd, void *buf, int buflen);
 extern int di_read(proc_ctrl_block_t *proc, int fd, void *buf, int buflen);
-extern int di_ioctl(proc_ctrl_block_t *proc, int fd, unsigned long command_code, void *args);
+extern int di_ioctl(proc_ctrl_block_t *proc, int fd,
+                    unsigned long command_code, void *args);
 
 /* kernel services */
 extern void init_idle_proc(proc_ctrl_block_t *idle_proc);

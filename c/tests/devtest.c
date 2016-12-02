@@ -39,35 +39,35 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(sysclose(fd), 0);
     
     // Error case: double close
-    ASSERT_EQUAL(sysclose(fd), EBADF);
+    ASSERT_EQUAL(sysclose(fd), SYSERR);
     
     // Error case: Random closes
-    ASSERT_EQUAL(sysclose(-1), EBADF);
-    ASSERT_EQUAL(sysclose(2), EBADF);
-    ASSERT_EQUAL(sysclose(PCB_NUM_FDS), EBADF);
-    ASSERT_EQUAL(sysclose(PCB_NUM_FDS + 1), EBADF);
+    ASSERT_EQUAL(sysclose(-1), SYSERR);
+    ASSERT_EQUAL(sysclose(2), SYSERR);
+    ASSERT_EQUAL(sysclose(PCB_NUM_FDS), SYSERR);
+    ASSERT_EQUAL(sysclose(PCB_NUM_FDS + 1), SYSERR);
     
     // Error case: open twice
     fd = sysopen(DEVICE_ID_KEYBOARD);
     fd2 = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
-    ASSERT_EQUAL(fd2, EBUSY);
+    ASSERT_EQUAL(fd2, SYSERR);
     ASSERT_EQUAL(sysclose(fd), 0);
-    ASSERT_EQUAL(sysclose(fd2), EBADF);
+    ASSERT_EQUAL(sysclose(fd2), SYSERR);
     
     fd = sysopen(DEVICE_ID_KEYBOARD);
     fd2 = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
     ASSERT_EQUAL(fd, 0);
-    ASSERT_EQUAL(fd2, EBUSY);
+    ASSERT_EQUAL(fd2, SYSERR);
     ASSERT_EQUAL(sysclose(fd), 0);
-    ASSERT_EQUAL(sysclose(fd2), EBADF);
+    ASSERT_EQUAL(sysclose(fd2), SYSERR);
     
     fd = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
     fd2 = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
-    ASSERT_EQUAL(fd2, EBUSY);
+    ASSERT_EQUAL(fd2, SYSERR);
     ASSERT_EQUAL(sysclose(fd), 0);
-    ASSERT_EQUAL(sysclose(fd2), EBADF);
+    ASSERT_EQUAL(sysclose(fd2), SYSERR);
 }
 
 static void devtest_write(void) {
@@ -83,13 +83,13 @@ static void devtest_write(void) {
     
     // Error case: write to a closed FD
     ASSERT_EQUAL(sysclose(fd), 0);
-    ASSERT_EQUAL(syswrite(fd, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(syswrite(fd, buf, strlen(buf)), SYSERR);
     
     // Error case: write to arbitrary FDs
-    ASSERT_EQUAL(syswrite(-1, buf, strlen(buf)), EBADF);
-    ASSERT_EQUAL(syswrite(2, buf, strlen(buf)), EBADF);
-    ASSERT_EQUAL(syswrite(PCB_NUM_FDS, buf, strlen(buf)), EBADF);
-    ASSERT_EQUAL(syswrite(PCB_NUM_FDS + 1, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(syswrite(-1, buf, strlen(buf)), SYSERR);
+    ASSERT_EQUAL(syswrite(2, buf, strlen(buf)), SYSERR);
+    ASSERT_EQUAL(syswrite(PCB_NUM_FDS, buf, strlen(buf)), SYSERR);
+    ASSERT_EQUAL(syswrite(PCB_NUM_FDS + 1, buf, strlen(buf)), SYSERR);
 }
 
 static void devtest_read(void) {
@@ -131,13 +131,13 @@ static void devtest_read_err(void) {
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
     ASSERT_EQUAL(sysclose(fd), 0);
-    ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), EBADF);
+    ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), SYSERR);
     
     // Error case: read to arbitrary FDs
-    ASSERT_EQUAL(sysread(-1, buf, sizeof(buf)), EBADF);
-    ASSERT_EQUAL(sysread(2, buf, sizeof(buf)), EBADF);
-    ASSERT_EQUAL(sysread(PCB_NUM_FDS, buf, sizeof(buf)), EBADF);
-    ASSERT_EQUAL(sysread(PCB_NUM_FDS + 1, buf, sizeof(buf)), EBADF);
+    ASSERT_EQUAL(sysread(-1, buf, sizeof(buf)), SYSERR);
+    ASSERT_EQUAL(sysread(2, buf, sizeof(buf)), SYSERR);
+    ASSERT_EQUAL(sysread(PCB_NUM_FDS, buf, sizeof(buf)), SYSERR);
+    ASSERT_EQUAL(sysread(PCB_NUM_FDS + 1, buf, sizeof(buf)), SYSERR);
 }
 
 static void devtest_ioctl(void) {
@@ -162,10 +162,10 @@ static void devtest_ioctl(void) {
     
     // Invalid case: ioctl on closed FD
     ASSERT_EQUAL(sysclose(fd), 0);
-    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), EBADF);
-    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_EOF), EBADF);
-    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_ENABLE_ECHO), EBADF);
-    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), EBADF);
-    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO), EBADF);
-    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), EBADF);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), SYSERR);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_EOF), SYSERR);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_ENABLE_ECHO), SYSERR);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), SYSERR);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO), SYSERR);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), SYSERR);
 }
