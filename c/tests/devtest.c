@@ -13,6 +13,7 @@ Called from outside:
 static void devtest_open_close(void);
 static void devtest_write(void);
 static void devtest_read(void);
+static void devtest_read_ioctl(void);
 static void devtest_read_err(void);
 static void devtest_ioctl(void);
 
@@ -22,6 +23,7 @@ void dev_run_all_tests(void) {
     devtest_write();
     devtest_read();
     devtest_read_err();
+    devtest_read_ioctl();
     devtest_ioctl();
     
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
@@ -121,6 +123,40 @@ static void devtest_read(void) {
     kprintf("Returned (%d): %s\n", bytes, buf);
     
     sysclose(fd);
+}
+
+static void devtest_read_ioctl(void) {
+    int fd;
+    int bytes;
+    char buf[20] = {'\0'};
+    
+    // Valid case: open and read a FD
+    kprintf("This should be silent (please type on keyboard)\n");
+    fd = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
+    
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 4);
+    kprintf("Returned (%d): %s\n", bytes, buf);
+    
+    kprintf("Enabling echo... (please type on keyboard)\n");
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_ENABLE_ECHO), 0);
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 4);
+    kprintf("Returned (%d): %s\n", bytes, buf);
+    
+    kprintf("Disabling echo... (please type on keyboard)\n");
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO), 0);
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 4);
+    kprintf("Returned (%d): %s\n", bytes, buf);
+    
+    kprintf("Changing EOF to the character 'a'... (please type on keybaord)\n");
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), 0);
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 4);
+    kprintf("Returned (%d): %s\n", bytes, buf);
+    
+    ASSERT_EQUAL(sysclose(fd), 0);
 }
 
 static void devtest_read_err(void) {
