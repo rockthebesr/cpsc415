@@ -52,7 +52,7 @@ int send(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
         DEBUG("Waiting for receiver...\n");
         
         add_proc_to_blocking_queue(srcproc, destproc, SENDER);
-        return SYSMSG_BLOCKED;
+        return BLOCKERR;
     }
 }
 
@@ -88,7 +88,7 @@ int recv(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
         DEBUG("Waiting for receiver...\n");
         
         add_proc_to_blocking_queue(destproc, srcproc, RECEIVER);
-        return SYSMSG_BLOCKED;
+        return BLOCKERR;
     }
 }
 
@@ -133,6 +133,6 @@ int recv_any(proc_ctrl_block_t *destproc, void *buffer, unsigned long len) {
 
         destproc->blocking_queue_name = RECEIVE_ANY;
 
-        return SYSMSG_BLOCKED;
+        return BLOCKERR;
     }
 }

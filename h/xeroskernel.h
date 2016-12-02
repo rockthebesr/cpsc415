@@ -34,7 +34,6 @@ typedef unsigned int size_t; /* Something that can hold the value of
 #define EBADF        -11        /* bad FD number */
 #define ENOIOCTLCMD  -12        /* no such IOCTL command for this device */
 #define EBUSY        -13        /* device busy */
-#define BLOCKED      -14        /* blocked */
 
 #define DEFAULT_STACK_SIZE 8192
 #define TICK_LENGTH_IN_MS 10
@@ -200,7 +199,6 @@ void dispatch(funcptr root_proc);
 #define SYSPID_DNE     -1
 #define SYSPID_ME      -2
 #define SYSERR_OTHER   -3
-#define SYSMSG_BLOCKED -4
 #define SYSKILL_TARGET_DNE -712
 #define SYSKILL_INVALID_SIGNAL -651
 #define SYSWAIT_SIGNALLED -2

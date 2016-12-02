@@ -244,7 +244,7 @@ static void dispatch_syscall_send(void) {
     }
     
     currproc->ret = send(currproc, destproc, buffer, len);
-    if (currproc->ret == SYSMSG_BLOCKED) {
+    if (currproc->ret == BLOCKERR) {
         currproc->curr_state = PROC_STATE_BLOCKED;
 
         // setup all blocked procs' return values to assume
@@ -288,7 +288,7 @@ static void dispatch_syscall_recv(void) {
         currproc->ret = recv(srcproc, currproc, buffer, len);
     }
 
-    if (currproc->ret == SYSMSG_BLOCKED) {
+    if (currproc->ret == BLOCKERR) {
         currproc->curr_state = PROC_STATE_BLOCKED;
 
         // setup all blocked procs' return values to assume
@@ -427,7 +427,7 @@ static int dispatch_syscall_read(void) {
     result = di_read(currproc, (int)currproc->args[0], (void*)currproc->args[1],
         (int)currproc->args[2]);
     
-    if (result == BLOCKED) {
+    if (result == BLOCKERR) {
         currproc->curr_state = PROC_STATE_BLOCKED;
         currproc->blocking_proc = NULL;
         currproc = get_next_proc();

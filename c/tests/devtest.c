@@ -8,6 +8,7 @@ Called from outside:
 #include <xerostest.h>
 #include <xeroskernel.h>
 #include <xeroslib.h>
+#include <i386.h>
 
 static void devtest_open_close(void);
 static void devtest_write(void);
@@ -16,6 +17,7 @@ static void devtest_read_err(void);
 static void devtest_ioctl(void);
 
 void dev_run_all_tests(void) {
+    initPIT(1000 / TICK_LENGTH_IN_MS);
     devtest_open_close();
     devtest_write();
     devtest_read();
@@ -23,7 +25,7 @@ void dev_run_all_tests(void) {
     devtest_ioctl();
     
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
-    DEBUG("Done all device tests. Have fun with the keyboard!\n");
+    kprintf("Done all device tests. Have fun with the keyboard!\n");
     while(1);
 }
 
@@ -92,32 +94,31 @@ static void devtest_write(void) {
 
 static void devtest_read(void) {
     int fd;
-    int bytes;
     char buf[20] = {'\0'};
     
     // Valid case: open and read a FD
-    DEBUG("Please type on the keyboard\n");
+    kprintf("Please type on the keyboard\n");
     fd = sysopen(DEVICE_ID_KEYBOARD);
     
     memset(buf, '\0', sizeof(buf));
-    bytes = sysread(fd, buf, 1);
-    DEBUG("Returned (%d): %s\n", bytes, buf);
+    int bytes = sysread(fd, buf, 1);
+    kprintf("Returned (%d): %s\n", bytes, buf);
     
     memset(buf, '\0', sizeof(buf));
     bytes = sysread(fd, buf, 2);
-    DEBUG("Returned (%d): %s\n", bytes, buf);
+    kprintf("Returned (%d): %s\n", bytes, buf);
     
     memset(buf, '\0', sizeof(buf));
     bytes = sysread(fd, buf, 4);
-    DEBUG("Returned (%d): %s\n", bytes, buf);
+    kprintf("Returned (%d): %s\n", bytes, buf);
     
     memset(buf, '\0', sizeof(buf));
     bytes = sysread(fd, buf, 8);
-    DEBUG("Returned (%d): %s\n", bytes, buf);
+    kprintf("Returned (%d): %s\n", bytes, buf);
     
     memset(buf, '\0', sizeof(buf));
     bytes = sysread(fd, buf, 16);
-    DEBUG("Returned (%d): %s\n", bytes, buf);
+    kprintf("Returned (%d): %s\n", bytes, buf);
     
     sysclose(fd);
 }

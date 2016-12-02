@@ -104,7 +104,8 @@ _common_entry_point: \n\
         proc->args = (unsigned long *)0xCAFEBABE;
         break;
     default:
-        kprintf("Kernel encountered unexpected ctsw_reason %d. Halting.\n", ctsw_reason);
+        kprintf("Kernel encountered unexpected ctsw_reason %d. Halting.\n",
+                ctsw_reason);
         while(1);
     }
 

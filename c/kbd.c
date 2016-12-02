@@ -140,7 +140,7 @@ int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
         return g_kbd_task_queue[g_kbd_task_queue_head].i;
     }
     
-    return BLOCKED;
+    return BLOCKERR;
 }
 
 int kbd_write(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
