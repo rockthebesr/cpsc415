@@ -5,11 +5,23 @@
 #include <kbd.h>
 #include <stdarg.h>
 #include <i386.h>
+#include <pcb.h>
 
 #define KBD_DEFAULT_EOF ((char)0x04)
 
 #define KEYBOARD_PORT_CONTROL_READY_MASK 0x01
 #define KEYBOARD_PORT_DATA_SCANCODE_MASK 0x0FF
+
+#define KBD_TASK_QUEUE_SIZE 32
+typedef struct kbd_task {
+    proc_ctrl_block_t *pcb;
+    void *buf;
+    int buflen;
+    int i;
+} kbd_task_t;
+static kbd_task_t g_kbd_task_queue[KBD_TASK_QUEUE_SIZE];
+static int g_kbd_task_queue_head = 0;
+static int g_kbd_task_queue_tail = 0;
 
 typedef struct kbd_dvioblk {
     int orig_echo_flag;
@@ -19,6 +31,7 @@ static int kbd_ioctl_set_eof(void *args);
 // Only 1 keyboard is allowed to be open at a time
 static int g_kbd_in_use = 0;
 
+static void keyboard_flush_buffer(kbd_task_t *task);
 static char keyboard_process_scancode(int data);
 #define KEYBOARD_STATE_SHIFT_BIT 0
 #define KEYBOARD_STATE_CTRL_BIT 1
@@ -65,7 +78,7 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
 int kbd_init(void) {
     g_kbd_in_use = 0;
     g_keyboard_buffer_head = 0;
-    g_keyboard_buffer_tail = KEYBOARD_BUFFER_SIZE - 1;
+    g_keyboard_buffer_tail = 0;
     
     // Read data from the ports, in case some interrupts triggered in the past
     inb(KEYBOARD_PORT_DATA);
@@ -99,16 +112,27 @@ int kbd_close(void *dvioblk) {
     return 0;
 }
 
-int kbd_read(void *dvioblk, void* buf, int buflen) {
+int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
     DEBUG("buf: 0x%08x, buflen: %d\n", buf, buflen);
-    // TODO: implement me!
-    return 0;
+    g_kbd_task_queue[g_kbd_task_queue_head].pcb = proc;
+    g_kbd_task_queue[g_kbd_task_queue_head].buf = buf;
+    g_kbd_task_queue[g_kbd_task_queue_head].i = 0;
+    g_kbd_task_queue[g_kbd_task_queue_head].buflen = buflen;
+    g_kbd_task_queue_head++;
+    
+    keyboard_flush_buffer(&g_kbd_task_queue[g_kbd_task_queue_head]);
+    if (g_kbd_task_queue[g_kbd_task_queue_head].i == buflen) {
+        return 0;
+    }
+    
+    return BLOCKED;
 }
 
-int kbd_write(void *dvioblk, void* buf, int buflen) {
+int kbd_write(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
     (void)dvioblk;
     (void)buf;
     (void)buflen;
+    (void)proc;
     // Cannot write to keyboard
     return -1;
 }
@@ -174,6 +198,7 @@ static int kbd_ioctl_set_eof(void *args) {
 void keyboard_isr(void) {
     int isDataPresent;
     int data;
+    kbd_task_t *task;
     char c = 0;
     
     isDataPresent = KEYBOARD_PORT_CONTROL_READY_MASK & inb(KEYBOARD_PORT_CONTROL);
@@ -191,19 +216,47 @@ void keyboard_isr(void) {
                 return;
             }
             
-            // Make sure buffer has room
-            if (g_keyboard_buffer_head != g_keyboard_buffer_tail) {
+            if (g_keyboard_echo_flag) {
+                kprintf("%c", c);
+            }
+            
+            if (g_kbd_task_queue_tail != g_kbd_task_queue_head) {
+                // If there is a task waiting, write to task
+                kprintf("task\n");
+                task = &g_kbd_task_queue[g_kbd_task_queue_tail];
+                ((char*)(task->buf))[task->i] = c;
+                task->i++;
+                if (task->i == task->buflen) {
+                    add_pcb_to_queue(task->pcb, PROC_STATE_READY);
+                    g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
+                }
+            } else if (((g_keyboard_buffer_head + 1) % KEYBOARD_BUFFER_SIZE) != g_keyboard_buffer_tail) {
+                // Make sure buffer has room
+                kprintf("buffer\n");
                 g_keyboard_buffer[g_keyboard_buffer_head] = c;
                 g_keyboard_buffer_head = (g_keyboard_buffer_head + 1) % KEYBOARD_BUFFER_SIZE;
-                
-                if (g_keyboard_echo_flag) {
-                    kprintf("%c", c);
-                }
             } else {
                 // Discard
                 kprintf("buffer full: %d - %d\n", g_keyboard_buffer_head, g_keyboard_buffer_tail);
             }
         }
+    }
+}
+
+static void keyboard_flush_buffer(kbd_task_t *task) {
+    if (task == NULL) {
+        return;
+    }
+    
+    // While the buffer still has some contents in it
+    while (g_keyboard_buffer_tail != g_keyboard_buffer_head) {
+        if (task->i == task->buflen) {
+            return;
+        }
+        
+        ((char*)(task->buf))[task->i] = g_keyboard_buffer[g_keyboard_buffer_tail];
+        task->i++;
+        g_keyboard_buffer_tail = (g_keyboard_buffer_tail + 1) % KEYBOARD_BUFFER_SIZE;
     }
 }
 

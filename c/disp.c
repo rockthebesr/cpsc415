@@ -424,8 +424,18 @@ static int dispatch_syscall_read(void) {
         return result;
     }
     
-    return di_read(currproc, (int)currproc->args[0], (void*)currproc->args[1],
+    result = di_read(currproc, (int)currproc->args[0], (void*)currproc->args[1],
         (int)currproc->args[2]);
+    
+    if (result == BLOCKED) {
+        currproc->curr_state = PROC_STATE_BLOCKED;
+        currproc->blocking_proc = NULL;
+        currproc = get_next_proc();
+        
+        return result;
+    }
+    
+    return result;
 }
 
 /**

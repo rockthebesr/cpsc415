@@ -85,7 +85,7 @@ int di_write(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
         return EBADF;
     }
     
-    return proc->fd_table[fd]->dvwrite(proc->fd_table[fd]->dvioblk, buf, buflen);
+    return proc->fd_table[fd]->dvwrite(proc, proc->fd_table[fd]->dvioblk, buf, buflen);
 }
 
 /**
@@ -98,7 +98,7 @@ int di_read(proc_ctrl_block_t *proc, int fd, void *buf, int buflen) {
         return EBADF;
     }
     
-    return proc->fd_table[fd]->dvread(proc->fd_table[fd]->dvioblk, buf, buflen);
+    return proc->fd_table[fd]->dvread(proc, proc->fd_table[fd]->dvioblk, buf, buflen);
 }
 
 /**

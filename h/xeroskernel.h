@@ -34,6 +34,7 @@ typedef unsigned int size_t; /* Something that can hold the value of
 #define EBADF        -11        /* bad FD number */
 #define ENOIOCTLCMD  -12        /* no such IOCTL command for this device */
 #define EBUSY        -13        /* device busy */
+#define BLOCKED      -14        /* blocked */
 
 #define DEFAULT_STACK_SIZE 8192
 #define TICK_LENGTH_IN_MS 10
@@ -77,6 +78,9 @@ void  kfree(void *ptr);
 void  kmem_dump_free_list(void);
 int kmem_get_free_list_length(void);
 
+/* Forward declarations */
+typedef struct proc_ctrl_block proc_ctrl_block_t;
+
 /* Devices */
 typedef enum device_id_enum {
     DEVICE_ID_KEYBOARD = 0,
@@ -100,8 +104,8 @@ typedef struct devsw {
     int (*dvinit)(void);
     int (*dvopen)(void *dvioblk);
     int (*dvclose)(void *dvioblk);
-    int (*dvread)(void *dvioblk, void *buf, int buflen);
-    int (*dvwrite)(void *dvioblk, void *buf, int buflen);
+    int (*dvread)(proc_ctrl_block_t *proc, void *dvioblk, void *buf, int buflen);
+    int (*dvwrite)(proc_ctrl_block_t *proc, void *dvioblk, void *buf, int buflen);
     int (*dvioctl)(void *dvioblk, unsigned long command, void *args);
     // input available interrupt
     int (*dviint)(void);

@@ -15,6 +15,23 @@ static void devtest_read(void);
 static void devtest_ioctl(void);
 
 void dev_run_all_tests(void) {
+    int fd;
+    char buf[20] = {'\0'};
+    
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    sysread(fd, buf, 1);
+    DEBUG("Returned: %s\n", buf);
+    sysread(fd, buf, 2);
+    DEBUG("Returned: %s\n", buf);
+    sysread(fd, buf, 4);
+    DEBUG("Returned: %s\n", buf);
+    sysread(fd, buf, 8);
+    DEBUG("Returned: %s\n", buf);
+    sysread(fd, buf, 16);
+    DEBUG("Returned: %s\n", buf);
+    sysclose(fd);
+    
+    
     devtest_open_close();
     devtest_write();
     devtest_read();
@@ -90,25 +107,24 @@ static void devtest_write(void) {
 
 static void devtest_read(void) {
     int fd;
-    char buf[20];
+    char buf[4];
     
     DEBUG("buf addr: 0x%08x, sizeof(buf): %d\n", (unsigned long)buf, sizeof(buf));
-    sprintf(buf, "Hello");
     
     // Valid case: open and read a FD
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
-    ASSERT_EQUAL(sysread(fd, buf, strlen(buf)), 0);
+    ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), 0);
     
     // Error case: read to a closed FD
     ASSERT_EQUAL(sysclose(fd), 0);
-    ASSERT_EQUAL(sysread(fd, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), EBADF);
     
     // Error case: read to arbitrary FDs
-    ASSERT_EQUAL(sysread(-1, buf, strlen(buf)), EBADF);
-    ASSERT_EQUAL(sysread(2, buf, strlen(buf)), EBADF);
-    ASSERT_EQUAL(sysread(PCB_NUM_FDS, buf, strlen(buf)), EBADF);
-    ASSERT_EQUAL(sysread(PCB_NUM_FDS + 1, buf, strlen(buf)), EBADF);
+    ASSERT_EQUAL(sysread(-1, buf, sizeof(buf)), EBADF);
+    ASSERT_EQUAL(sysread(2, buf, sizeof(buf)), EBADF);
+    ASSERT_EQUAL(sysread(PCB_NUM_FDS, buf, sizeof(buf)), EBADF);
+    ASSERT_EQUAL(sysread(PCB_NUM_FDS + 1, buf, sizeof(buf)), EBADF);
 }
 
 static void devtest_ioctl(void) {
