@@ -15,6 +15,7 @@ static void devtest_write(void);
 static void devtest_read(void);
 static void devtest_read_ioctl(void);
 static void devtest_read_err(void);
+static void devtest_read_buffer(void);
 static void devtest_ioctl(void);
 
 void dev_run_all_tests(void) {
@@ -24,6 +25,7 @@ void dev_run_all_tests(void) {
     devtest_read();
     devtest_read_err();
     devtest_read_ioctl();
+    devtest_read_buffer();
     devtest_ioctl();
     
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
@@ -130,7 +132,7 @@ static void devtest_read_ioctl(void) {
     int bytes;
     char buf[20] = {'\0'};
     
-    // Valid case: open and read a FD
+    // Valid case: open, read, and ioctl a FD
     kprintf("This should be silent (please type on keyboard)\n");
     fd = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
     
@@ -154,6 +156,30 @@ static void devtest_read_ioctl(void) {
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), 0);
     memset(buf, '\0', sizeof(buf));
     bytes = sysread(fd, buf, 4);
+    kprintf("Returned (%d): %s\n", bytes, buf);
+    
+    ASSERT_EQUAL(sysclose(fd), 0);
+}
+
+static void devtest_read_buffer(void) {
+    int fd;
+    int bytes;
+    char buf[20] = {'\0'};
+    
+    // Valid case: open, sleep, then read. Buffer should flush
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    kprintf("Sleeping for 3 seconds (type to the keyboard now)...\n");
+    syssleep(3000);
+    kprintf("\nDone!\n");
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 4);
+    kprintf("Returned (%d): %s\n", bytes, buf);
+    
+    kprintf("Sleeping for 3 seconds (type to the keyboard now)...\n");
+    syssleep(3000);
+    kprintf("\nDone!\n");
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 8);
     kprintf("Returned (%d): %s\n", bytes, buf);
     
     ASSERT_EQUAL(sysclose(fd), 0);

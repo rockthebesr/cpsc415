@@ -43,9 +43,9 @@ static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval);
 #define FLAG_BIT_CLEAR(flag, bitNum) {flag &= ~(0x01 << bitNum);}
 #define FLAG_BIT_TOGGLE(flag, bitNum) {flag ^= (0x01 << bitNum);}
 static int g_keyboard_keystate_flag = 0;
-// Circular buffer implementation
-#define KEYBOARD_BUFFER_SIZE 4
-static char g_keyboard_buffer[4] = {0};
+// Circular buffer implementation, 1 index is "wasted" to indicate full buffer
+#define KEYBOARD_BUFFER_SIZE (4 + 1)
+static char g_keyboard_buffer[KEYBOARD_BUFFER_SIZE] = {0};
 static int g_keyboard_buffer_head = 0;
 static int g_keyboard_buffer_tail = 0;
 static char g_keyboard_eof;
@@ -127,12 +127,12 @@ int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
     g_kbd_task_queue[g_kbd_task_queue_head].buf = buf;
     g_kbd_task_queue[g_kbd_task_queue_head].i = 0;
     g_kbd_task_queue[g_kbd_task_queue_head].buflen = buflen;
-    g_kbd_task_queue_head++;
-    
     keyboard_flush_buffer(&g_kbd_task_queue[g_kbd_task_queue_head]);
     if (g_kbd_task_queue[g_kbd_task_queue_head].i == buflen) {
         return buflen;
     }
+    
+    g_kbd_task_queue_head++;
     
     if (g_kbd_done) {
         // EOF was encountered. We have to do this check
@@ -269,7 +269,7 @@ static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval) {
 }
 
 static void keyboard_flush_buffer(kbd_task_t *task) {
-    char lastval;
+    char c;
     
     if (task == NULL) {
         return;
@@ -281,13 +281,13 @@ static void keyboard_flush_buffer(kbd_task_t *task) {
             return;
         }
         
-        lastval = g_keyboard_buffer[g_keyboard_buffer_tail];
-        ((char*)(task->buf))[task->i] = lastval;
+        c = g_keyboard_buffer[g_keyboard_buffer_tail];
+        ((char*)(task->buf))[task->i] = c;
         task->i++;
         g_keyboard_buffer_tail = (g_keyboard_buffer_tail + 1) % KEYBOARD_BUFFER_SIZE;
         
         // Stop copying on \n
-        if (lastval == '\n') {
+        if (c == '\n') {
             return;
         }
     }
