@@ -14,6 +14,7 @@ static void command_ps(void);
 static void command_k(void);
 static void command_a(void);
 static void command_t(void);
+static void command_sudo(void);
 
 static int g_pid_to_kill;
 
@@ -66,9 +67,6 @@ void login_proc(void) {
             strcmp(pass_buf, valid_pass) == 0) {
 
             syswait(shell_pid);
-        } else {
-            int shell_pid = syscreate(&shell, DEFAULT_STACK_SIZE);
-            syswait(shell_pid);
         }
         */
     }
@@ -111,6 +109,7 @@ static void shell(void) {
         filter_newline(buf);
         char command[50];
         char arg[50];
+        char printbuf[80];
         int ampersand = get_command(buf, command, arg);
         kprintf("& sent: %d\n", ampersand);
         kprintf("command: !%s!\n", command);
@@ -137,8 +136,15 @@ static void shell(void) {
         } else if(!strcmp("ex", command)) {           
             break;
 
+        } else if(!strcmp("sudo", command)) {
+            g_arg = arg;
+            pid = syscreate(&command_sudo, DEFAULT_STACK_SIZE);
+        
         } else {
-            sysputs("Command not found\n");
+            sprintf(printbuf, "The program %s is currently not installed. You can install it by typing:\n", command);
+            sysputs(printbuf);
+            sprintf(printbuf, "sudo apt-get install %s\n", command);
+            sysputs(printbuf);
         }
 
         if (wait) {
@@ -263,6 +269,44 @@ static void command_t(void) {
         sysputs("t\n");
         syssleep(10000);
     }
+}
+
+static void command_sudo(void) {
+    setup_kill_handler();
+    
+    char buf[20] = {0};
+    char printbuf[80];
+    
+    kprintf("[sudo] password for cpsc415:");
+    int fd = sysopen(DEVICE_ID_KEYBOARD);
+    int prev_echo = sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO);
+    sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO);
+    sysread(fd, buf, sizeof(buf) - 1);
+    
+    if (!strcmp(buf, "EveryoneGetsAnA\n")) {
+        sysputs("\nReading package lists...");
+        syssleep(1000);
+        sysputs("Done\n");
+        
+        sysputs("Building dependency tree...");
+        syssleep(2000);
+        sysputs("Done\n");
+        
+        sysputs("Reading state information...");
+        syssleep(3000);
+        sysputs("Done\n");
+        
+        sprintf(printbuf, "E: '%s' not found.\n", g_arg);
+        sysputs(printbuf);
+    } else {
+        kprintf("Invalid password.\n");
+    }
+    
+    if (prev_echo) {
+        sysioctl(fd, KEYBOARD_IOCTL_ENABLE_ECHO);
+    }
+    
+    sysclose(DEVICE_ID_KEYBOARD);
 }
 
 static void setup_kill_handler(void) {
