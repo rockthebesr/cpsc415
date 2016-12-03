@@ -295,7 +295,6 @@ static void keyboard_process_char(char c) {
 static void keyboard_handle_eof(void) {
     kbd_task_t *task;
     
-    kprintf("EOF: 0x%02x\n", g_keyboard_eof);
     setEnabledKbd(0);
     g_kbd_done = 1;
     
