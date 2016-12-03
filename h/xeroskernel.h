@@ -105,11 +105,11 @@ typedef struct devsw {
     int dvnum;
     char dvname[20];
     int (*dvinit)(void);
-    int (*dvopen)(void *dvioblk);
-    int (*dvclose)(void *dvioblk);
+    int (*dvopen)(proc_ctrl_block_t *proc, void *dvioblk);
+    int (*dvclose)(proc_ctrl_block_t *proc, void *dvioblk);
     int (*dvread)(proc_ctrl_block_t *proc, void *dvioblk, void *buf, int buflen);
     int (*dvwrite)(proc_ctrl_block_t *proc, void *dvioblk, void *buf, int buflen);
-    int (*dvioctl)(void *dvioblk, unsigned long command, void *args);
+    int (*dvioctl)(proc_ctrl_block_t *proc, void *dvioblk, unsigned long command, void *args);
     // input available interrupt
     int (*dviint)(void);
     // output available interrupt
