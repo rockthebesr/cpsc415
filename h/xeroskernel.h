@@ -140,6 +140,7 @@ typedef enum {
     WAITING = 2,
     RECEIVE_ANY,
     SLEEP,
+    DEVICE,
     NO_BLOCKER
 } blocking_queue_t;
 

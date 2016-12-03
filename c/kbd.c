@@ -335,6 +335,7 @@ static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval) {
     // Edge case: Make sure we only unblock BLOCKED processes
     if (pcb->curr_state == PROC_STATE_BLOCKED) {
         add_pcb_to_queue(pcb, PROC_STATE_READY);
+        pcb->blocking_queue_name = NO_BLOCKER;
     }
 }
 
