@@ -17,6 +17,19 @@ static void command_a(void);
 static void command_t(void);
 
 static int g_pid_to_kill;
+static char *detailed_states[] = {
+    "READY",
+    "STOPPED",
+    "RUNNING",
+    "BLOCKED: SENDING",
+    "BLOCKED: RECEIVING",
+    "BLOCKED: WAITING",
+    "BLOCKED: RECEIVE ANY",
+    "BLOCKED: SLEEPING",
+    "BLOCKED: IO"
+};
+
+
 
 /**
  * Authenticates the user, starts the shell process
@@ -46,11 +59,15 @@ void login_proc(void) {
         filter_newline(user_buf);
         filter_newline(pass_buf);
 
+        int shell_pid = syscreate(&shell, DEFAULT_STACK_SIZE);
+        syswait(shell_pid);
+        /*
         if (strcmp(user_buf, valid_user) == 0 &&
             strcmp(pass_buf, valid_pass) == 0) {
-            int shell_pid = syscreate(&shell, DEFAULT_STACK_SIZE);
+
             syswait(shell_pid);
         }
+        */
     }
 }
 
@@ -188,13 +205,12 @@ static void command_ps(void) {
     processStatuses ps;
     char str[80];
 
-    //are the process id, the
-    //current state of the process, and the amount of time the process has run in milliseconds.
     int num = sysgetcputimes(&ps);
 
     sysputs("PID | State | Time\n");
     for (int i = 0; i < num; i++) {
-        sprintf(str, "%d  %d  %d\n", ps.pid[i], ps.status[i], ps.cpuTime[i]);
+        sprintf(str, "%d  %s  %d\n", ps.pid[i],
+                detailed_states[ps.status[i]], ps.cpuTime[i]);
         sysputs(str);
     }
 }

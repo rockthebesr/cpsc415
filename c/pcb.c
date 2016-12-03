@@ -250,8 +250,15 @@ static void fill_proc_info(processStatuses *ps, int slot,
     ASSERT(0 <= slot && slot < PCB_TABLE_SIZE);
 
     ps->pid[slot] = proc->pid;
-    ps->status[slot] = proc->curr_state;
     ps->cpuTime[slot] = proc->cpu_time * TICK_LENGTH_IN_MS;
+    
+    // User wants more detail than our state, they all require blocking details
+    int state = proc->curr_state;
+    if (state == PROC_STATE_BLOCKED) {
+        state += proc->blocking_queue_name;
+    }
+
+    ps->status[slot] = state;
 }
 
 /**

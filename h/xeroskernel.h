@@ -130,8 +130,8 @@ void di_init_devtable(void);
 typedef enum {
     PROC_STATE_READY = 0,
     PROC_STATE_STOPPED = 1,
-    PROC_STATE_BLOCKED,
-    PROC_STATE_RUNNING
+    PROC_STATE_RUNNING,
+    PROC_STATE_BLOCKED
 } proc_state_enum_t;
 
 typedef enum {
