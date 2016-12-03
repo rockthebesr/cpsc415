@@ -27,11 +27,11 @@ static void dispatch_syscall_sleep(void);
 static int dispatch_syscall_getcputimes(void);
 static int dispatch_syscall_sighandler(void);
 static void dispatch_syscall_sigreturn(void);
-static int dispatch_syscall_open(void);
-static int dispatch_syscall_close(void);
-static int dispatch_syscall_write(void);
-static int dispatch_syscall_read(void);
-static int dispatch_syscall_ioctl(void);
+static void dispatch_syscall_open(void);
+static void dispatch_syscall_close(void);
+static void dispatch_syscall_write(void);
+static void dispatch_syscall_read(void);
+static void dispatch_syscall_ioctl(void);
 
 
 static proc_ctrl_block_t *currproc;
@@ -123,23 +123,23 @@ void dispatch(funcptr root_proc) {
             break;
         
         case SYSCALL_OPEN:
-            currproc->ret = dispatch_syscall_open();
+            dispatch_syscall_open();
             break;
             
         case SYSCALL_CLOSE:
-            currproc->ret = dispatch_syscall_close();
+            dispatch_syscall_close();
             break;
             
         case SYSCALL_WRITE:
-            currproc->ret = dispatch_syscall_write();
+            dispatch_syscall_write();
             break;
         
         case SYSCALL_READ:
-            currproc->ret = dispatch_syscall_read();
+            dispatch_syscall_read();
             break;
         
         case SYSCALL_IOCTL:
-            currproc->ret = dispatch_syscall_ioctl();
+            dispatch_syscall_ioctl();
             break;
 
         default:
@@ -392,74 +392,75 @@ static void dispatch_syscall_sigreturn(void) {
  * Handler for sysopen
  * @return file descriptor on success, -1 on error
  */
-static int dispatch_syscall_open(void) {
+static void dispatch_syscall_open(void) {
     int device_no = (int)currproc->args[0];
-    return di_open(currproc, device_no);
+    currproc->ret = di_open(currproc, device_no);
+    return;
 }
 
 /**
  * Handler for sysclose
  * @return 0 on success, -1 on error
  */
-static int dispatch_syscall_close(void) {
+static void dispatch_syscall_close(void) {
     int fd = (int)currproc->args[0];
-    return di_close(currproc, fd);
+    currproc->ret = di_close(currproc, fd);
+    return;
 }
 
 /**
  * Handler for syswrite
  * @return number of bytes written on success, -1 on failure
  */
-static int dispatch_syscall_write(void) {
+static void dispatch_syscall_write(void) {
     int fd = (int)currproc->args[0];
     void* buf = (void*)currproc->args[1];
     int buflen = (int)currproc->args[2];
 
     int result = verify_usrptr(buf, buflen);
     if (result != OK) {
-        return SYSERR;
+        currproc->ret = SYSERR;
     }
     
-    return di_write(currproc, fd, buf, buflen);
+    currproc->ret = di_write(currproc, fd, buf, buflen);
+    return;
 }
 
 /**
  * Handler for sysread
  * @return number of bytes read on success, -1 on failure
  */
-static int dispatch_syscall_read(void) {
+static void dispatch_syscall_read(void) {
     int fd = (int)currproc->args[0];
     void* buf = (void*)currproc->args[1];
     int buflen = (int)currproc->args[2];
 
     int result = verify_usrptr(buf, buflen);
     if (result != OK) {
-        return SYSERR;
+        currproc->ret = SYSERR;
+        return;
     }
     
-    result = di_read(currproc, fd, buf, buflen);
+    currproc->ret = di_read(currproc, fd, buf, buflen);
     
-    if (result == BLOCKERR) {
+    if (currproc->ret == BLOCKERR) {
         currproc->curr_state = PROC_STATE_BLOCKED;
         currproc->blocking_proc = NULL;
         currproc = get_next_proc();
-        
-        return result;
     }
-    
-    return result;
 }
 
 /**
  * Handler for sysioctl
  * @return 0 on success, -1 on failure
  */
-static int dispatch_syscall_ioctl(void) {
+static void dispatch_syscall_ioctl(void) {
     int fd = (int)currproc->args[0];
     unsigned long command = (unsigned long)currproc->args[1];
 
     // actually a va_list, each arg will be validated on use in device driver
     void *args = (void*)currproc->args[2];
 
-    return di_ioctl(currproc, fd, command, args);
+    currproc->ret = di_ioctl(currproc, fd, command, args);
+    return;
 }

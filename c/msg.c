@@ -28,8 +28,6 @@ int send(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
         remove_proc_from_blocking_queue(destproc, srcproc, RECEIVER)) {
 
         // Case 1: Receiver is waiting for us to send
-        DEBUG("Receiver has been waiting for us!\n");
-
         if (destproc->blocking_queue_name == RECEIVE_ANY) {
             destproc->blocking_queue_name = NO_BLOCKER;
             int *from_pid = (int*)destproc->args[0];
@@ -49,8 +47,6 @@ int send(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
         return SYSPID_OK;
     } else {
         // Case 2: We have to block until the receiver is ready
-        DEBUG("Waiting for receiver...\n");
-        
         add_proc_to_blocking_queue(srcproc, destproc, SENDER);
         return BLOCKERR;
     }
@@ -70,8 +66,6 @@ int recv(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
     
     if (remove_proc_from_blocking_queue(srcproc, destproc, SENDER)) {
         // Case 1: Sender has been waiting for us
-        DEBUG("Sender has been waiting for us!\n");
-
         // Copy message into receiver's buffer
         void *sender_buf = (void*)srcproc->args[1];
         unsigned long sender_len = (unsigned long)srcproc->args[2];
@@ -85,8 +79,6 @@ int recv(proc_ctrl_block_t *srcproc, proc_ctrl_block_t *destproc,
         return SYSPID_OK;
     } else {
         // Case 2: Wait for sender
-        DEBUG("Waiting for receiver...\n");
-        
         add_proc_to_blocking_queue(destproc, srcproc, RECEIVER);
         return BLOCKERR;
     }
@@ -106,8 +98,6 @@ int recv_any(proc_ctrl_block_t *destproc, void *buffer, unsigned long len) {
 
     if (srcproc != NULL) {
         // Case 1: A sender has been waiting for us
-        DEBUG("Sender has been waiting for us!\n");
-
         int ret = remove_proc_from_blocking_queue(srcproc, destproc, SENDER);
         if (!ret) {
             return SYSERR_OTHER;
@@ -129,8 +119,6 @@ int recv_any(proc_ctrl_block_t *destproc, void *buffer, unsigned long len) {
         return SYSPID_OK;
     } else {
         // Case 2: Wait for sender
-        DEBUG("Waiting for receiver...\n");
-
         destproc->blocking_queue_name = RECEIVE_ANY;
 
         return BLOCKERR;

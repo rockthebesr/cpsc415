@@ -16,21 +16,28 @@ static void devtest_read(void);
 static void devtest_read_ioctl(void);
 static void devtest_read_err(void);
 static void devtest_read_buffer(void);
+static void devtest_read_multi_proc(void);
+static void devtest_read_multi(void);
 static void devtest_ioctl(void);
 
 void dev_run_all_tests(void) {
     initPIT(1000 / TICK_LENGTH_IN_MS);
+    
     devtest_open_close();
     devtest_write();
     devtest_read();
     devtest_read_err();
     devtest_read_ioctl();
     devtest_read_buffer();
+    devtest_read_multi();
     devtest_ioctl();
     
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
     kprintf("Done all device tests. Have fun with the keyboard!\n");
-    while(1);
+    while(1) {
+        char buf[80];
+        sysread(0, buf, sizeof(buf));
+    }
 }
 
 static void devtest_open_close(void) {
@@ -42,6 +49,20 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(fd, 0);
     ASSERT_EQUAL(sysclose(fd), 0);
     
+    // Valid case: open and close the same device
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    fd2 = sysopen(DEVICE_ID_KEYBOARD);
+    ASSERT_EQUAL(fd, 0);
+    ASSERT_EQUAL(fd2, 1);
+    ASSERT_EQUAL(sysclose(fd), 0);
+    ASSERT_EQUAL(sysclose(fd2), 0);
+    fd = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
+    fd2 = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
+    ASSERT_EQUAL(fd, 0);
+    ASSERT_EQUAL(fd2, 1);
+    ASSERT_EQUAL(sysclose(fd), 0);
+    ASSERT_EQUAL(sysclose(fd2), 0);
+    
     // Error case: double close
     ASSERT_EQUAL(sysclose(fd), SYSERR);
     
@@ -51,14 +72,6 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(sysclose(PCB_NUM_FDS), SYSERR);
     ASSERT_EQUAL(sysclose(PCB_NUM_FDS + 1), SYSERR);
     
-    // Error case: open twice
-    fd = sysopen(DEVICE_ID_KEYBOARD);
-    fd2 = sysopen(DEVICE_ID_KEYBOARD);
-    ASSERT_EQUAL(fd, 0);
-    ASSERT_EQUAL(fd2, SYSERR);
-    ASSERT_EQUAL(sysclose(fd), 0);
-    ASSERT_EQUAL(sysclose(fd2), SYSERR);
-
     // Error case: device does not exist
     fd = sysopen(-1);
     ASSERT_EQUAL(fd, SYSERR);
@@ -168,6 +181,39 @@ static void devtest_read_ioctl(void) {
     ASSERT_EQUAL(sysclose(fd), 0);
 }
 
+static void devtest_read_multi_proc(void) {
+    int pid = sysgetpid();
+    int fd;
+    int bytes;
+    char buf[4] = {'\0'};
+    char printbuf[80];
+    
+    sprintf(printbuf, "pid %d starting read...\n", pid);
+    sysputs(printbuf);
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    bytes = sysread(fd, buf, sizeof(buf) - 1);
+    sprintf(printbuf, "[%d] (%d): %s\n", pid, bytes, buf);
+    sysputs(printbuf);
+    ASSERT_EQUAL(sysclose(fd), 0);
+}
+
+static void devtest_read_multi(void) {
+    int pids[PCB_TABLE_SIZE - 1];
+    int numProcs = 0;
+    int i;
+    
+    for (i = 0; i < PCB_TABLE_SIZE - 1; i++) {
+        pids[i] = syscreate(&devtest_read_multi_proc, DEFAULT_STACK_SIZE);
+        numProcs += (pids[i] > 0 ? 1 : 0);
+    }
+    
+    for (i = 0; i < PCB_TABLE_SIZE - 1; i++) {
+        syswait(pids[i]);
+    }
+    
+    DEBUG("Done! Test succeeded with %d processes\n", numProcs);
+}
+
 static void devtest_read_buffer(void) {
     int fd;
     int bytes;
@@ -175,6 +221,14 @@ static void devtest_read_buffer(void) {
     
     // Valid case: open, sleep, then read. Buffer should flush
     fd = sysopen(DEVICE_ID_KEYBOARD);
+    
+    kprintf("Sleeping for 3 seconds (type to the keyboard now)...\n");
+    syssleep(3000);
+    kprintf("\nDone!\n");
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 2);
+    kprintf("Returned (%d): %s\n", bytes, buf);
+    
     kprintf("Sleeping for 3 seconds (type to the keyboard now)...\n");
     syssleep(3000);
     kprintf("\nDone!\n");
