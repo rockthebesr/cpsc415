@@ -112,7 +112,8 @@ returned from wait
 #   int fd4 = sysopen(DEVICE_ID_KEYBOARD);
 #   int fd5 = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
 # In the event that multiple FDs are reading from the keyboard at the same time,
-# one single keyboard char will be sent to a single FD in FIFO order.
+# one single keyboard char will be sent to all FDs. Buffering will not occur
+# if any FD is reading from the keyboard.
 #
 # Our testcase heavily relies on automated assertions.
 #
@@ -247,26 +248,28 @@ Invalid: ioctl with closed FD...Success!
 # Test Case 10: sysread() from multiple concurrent processes, kill off some
 #
 # This tests our kernel design decision, where multiple FDs can be open
-# for the same keyboard type. In our keyboard lower half implementation,
-# we have to ensure that our work queues are properly cleaned up, since
-# the processes which are requesting keyboard input have now died.
+# for the same keyboard type. This checks that processes do indeed read
+# concurrently, and that dead processes don't cause bugs.
 #
 # Procedure:
 #    * Spawn 5 subprocesses which perform the following:
 #       1. Open keyboard
 #       2. Read from keyboard
-#    * While the subprocesses are blocked, the main process kills 3 of them
-#    * Ensure the remaining 2 processes can successfully read
+#    * While the subprocesses are blocked, the main process kills 2 of them
+#    * Ensure the remaining 3 processes can successfully read
 #
 # Result: Success
 # devtest.c: devtest_read_multi_kill_cleanup
 ################################################################################
 Creating 5 processes... Don't type into keyboard...
-Killed 3 processes. Please type now
-> a
-[pid: 34] (1): a
-> s
-[pid: 35] (1): s
-> d
-[pid: 38] (1): d
+Created pid 34
+Created pid 35
+Created pid 36
+Created pid 37
+Created pid 38
+Killed 3 processes (36, 37). Please type now
+> asdf
+[pid: 34] (1): asdf
+[pid: 35] (1): asdf
+[pid: 38] (1): asdf
 Success!

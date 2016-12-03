@@ -19,5 +19,4 @@ int fd4 = sysopen(DEVICE_ID_KEYBOARD);
 int fd5 = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
 ```
 In the event that multiple processes listen on the keyboard at the same time,
-they will receive keyboard characters in FIFO order, with each character
-only being delivered to a single process.
+they will all receive the same keyboard characters.
