@@ -101,10 +101,172 @@ returned from wait
 
 
 ################################################################################
+# Test Case 5: sysopen() with invalid arguments
+#
+# Note that in our implementation, we allowed the same device to be opened
+# multiple times. This means that this is permitted by our kernel:
+#   int fd1 = sysopen(DEVICE_ID_KEYBOARD);
+#   int fd2 = sysopen(DEVICE_ID_KEYBOARD);
+#   int fd3 = sysopen(DEVICE_ID_KEYBOARD);
+# and this is not permitted:
+#   int fd4 = sysopen(DEVICE_ID_KEYBOARD);
+#   int fd5 = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
+# In the event that multiple FDs are reading from the keyboard at the same time,
+# one single keyboard char will be sent to a single FD in FIFO order.
+#
+# Our testcase heavily relies on automated assertions.
+#
+# Procedure:
+#    * Valid: open + close a keyboard device
+#    * Valid: open and close the same keyboard device twice
+#    * Invalid: double close a keyboard device
+#    * Invalid: close invalid FDs
+#    * Invalid: open devices that do not exist
+#    * Invalid: open and close two different keyboard devices
+#    * Invalid: open too many FDs
+#
+# Result: Success
+# devtest.c: devtest_open_close
+################################################################################
+(0)  Valid: open + close a keyboard device...Success!
+(0)  Valid: open and close the same keyboard device twice...Success!
+(-1) Invalid: double close a keyboard device...Success!
+(-1) Invalid: close invalid FDs...Success!
+(-1) Invalid: open devices that do not exist...Success!
+(-1) Invalid: open and close two different keyboard devices...Success!
+(-1) Invalid: open too many FDs...Success!
 
 
-5. sysopen() with invalid arguments
-6. syswrite() with invalid le descriptor
-7. sysioctl() test for invalid commands
-8. sysread() when there are more characters buered in kernel than the read requests
-9. Two test cases for scenarios not covered here or in the test program.
+
+
+################################################################################
+# Test Case 6: syswrite() with invalid file descriptor
+#
+# Our testcase heavily relies on automated assertions.
+#
+# Procedure:
+#    * Valid-ish: write to a valid file descriptor (not supported by keyboard)
+#    * Invalid: write to a closed file descriptor
+#    * Invalid: write to an invalid file descriptor
+#
+# Result: Success
+# devtest.c: devtest_write
+################################################################################
+(-1) Valid (though unsupported): write to valid FD...Success!
+(-1) Invalid: write to closed FD...Success!
+(-1) Invalid: write to invalid FD...Success!
+
+
+
+
+################################################################################
+# Test Case 7: sysioctl() test for invalid commands
+#
+# Our testcase heavily relies on automated assertions.
+#
+# Procedure:
+#    * Valid: ioctl a valid FD
+#    * Invalid: use invalid ioctl code
+#    * Invalid: ioctl command with a missing parameter (ensure no crash)
+#    * Invalid: ioctl command with a NULL paramater (ensure no crash)
+#    * Invalid: ioctl on closed FD
+#
+# Result: Success
+# devtest.c: devtest_ioctl
+################################################################################
+Valid: ioctl on a valid FD...Success!
+Invalid: ioctl with invalid command code...Success!
+Invalid: ioctl with missing command parameters...Success!
+Invalid: ioctl with NULL command parameters...Success!
+Invalid: ioctl with closed FD...Success!
+
+
+
+
+################################################################################
+# Test Case 8: sysread() when there are more characters buered in kernel than
+#              the read requests
+#
+# Procedure:
+#    * Open keyboard FD
+#    * Sleep for a few seconds
+#    * During sleep, the user types in several characters on the keyboard
+#    * On wake, read from keyboard
+#
+# Result: Success
+# devtest.c: devtest_read_buffer
+################################################################################
+(trying to read 2 characters from keyboard)
+    Sleeping for 3 seconds (type to the keyboard now)...
+(user input while sleep:)
+    > 1234
+    Woke up!
+(the read took the first 2 characters)
+    Returned (2): 12
+
+(trying to read 4 characters from keyboard)
+    Sleeping for 3 seconds (type to the keyboard now)...
+(user input while sleep:)
+    > 5678
+    Woke up!
+(the read took the remaining unread 2 chars (34) from last time, and dropped 78)
+    Returned (4): 3456
+
+(trying to read 8 characters from keyboard)
+    Sleeping for 3 seconds (type to the keyboard now)...
+(user input while sleep:)
+    > 9012
+    Woke up!
+(user input while awake:)
+    > 3456
+(the read concatenated both buffered and unbuffered input)
+    Returned (8): 90123456
+
+
+
+
+################################################################################
+# Test Case 9: sysread() with invalid parameters
+#
+# Our testcase heavily relies on automated assertions.
+#
+# Procedure:
+#    * Invalid: Read from closed FD
+#    * Invalid: Read from invalid FD
+#
+# Result: Success
+# devtest.c: devtest_read_err
+################################################################################
+(-1) Invalid: Read from closed FD...Success!
+(-1) Invalid: Read from invalid FD...Success!
+
+
+
+
+################################################################################
+# Test Case 10: sysread() from multiple concurrent processes, kill off some
+#
+# This tests our kernel design decision, where multiple FDs can be open
+# for the same keyboard type. In our keyboard lower half implementation,
+# we have to ensure that our work queues are properly cleaned up, since
+# the processes which are requesting keyboard input have now died.
+#
+# Procedure:
+#    * Spawn 5 subprocesses which perform the following:
+#       1. Open keyboard
+#       2. Read from keyboard
+#    * While the subprocesses are blocked, the main process kills 3 of them
+#    * Ensure the remaining 2 processes can successfully read
+#
+# Result: Success
+# devtest.c: devtest_read_multi_kill_cleanup
+################################################################################
+Creating 5 processes... Don't type into keyboard...
+Killed 3 processes. Please type now
+> a
+[pid: 34] (1): a
+> s
+[pid: 35] (1): s
+> d
+[pid: 38] (1): d
+Success!

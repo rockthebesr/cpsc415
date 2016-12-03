@@ -317,6 +317,9 @@ static void resolve_blocking(proc_ctrl_block_t *proc) {
     case WAITING:
         proc->ret = SYSWAIT_SIGNALLED;
         break;
+    case DEVICE:
+        proc->ret = SYSERR;
+        break;
 
     default:
         ASSERT(0);
@@ -331,6 +334,7 @@ static void resolve_blocking(proc_ctrl_block_t *proc) {
         wake(proc);
         break;
 
+    case DEVICE:
     case RECEIVE_ANY:
         ASSERT_EQUAL(proc->blocking_proc, NULL);
         proc->blocking_queue_name = NO_BLOCKER;

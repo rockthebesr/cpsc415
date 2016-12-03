@@ -29,6 +29,9 @@ static void devtest_ioctl(void);
 void dev_run_all_tests(void) {
     initPIT(1000 / TICK_LENGTH_IN_MS);
     
+    devtest_read_multi_kill_cleanup();
+    syssleep(5000);
+    
     devtest_open_close();
     devtest_write();
     devtest_read();
@@ -52,12 +55,13 @@ static void devtest_open_close(void) {
     int fd;
     int fd2;
     
-    // Valid case: open and close the first FD
+    kprintf("Valid: open + close a keyboard device...");
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
     ASSERT_EQUAL(sysclose(fd), 0);
+    kprintf("Success!\n");
     
-    // Valid case: open and close the same device
+    kprintf("Valid: open and close the same keyboard device twice...");
     fd = sysopen(DEVICE_ID_KEYBOARD);
     fd2 = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
@@ -70,23 +74,27 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(fd2, 1);
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(sysclose(fd2), 0);
+    kprintf("Success!\n");
     
-    // Error case: double close
+    kprintf("Invalid: double close a keyboard device...");
     ASSERT_EQUAL(sysclose(fd), SYSERR);
+    kprintf("Success!\n");
     
-    // Error case: Random closes
+    kprintf("Invalid: close invalid FDs...");
     ASSERT_EQUAL(sysclose(-1), SYSERR);
     ASSERT_EQUAL(sysclose(2), SYSERR);
     ASSERT_EQUAL(sysclose(PCB_NUM_FDS), SYSERR);
     ASSERT_EQUAL(sysclose(PCB_NUM_FDS + 1), SYSERR);
+    kprintf("Success!\n");
     
-    // Error case: device does not exist
+    kprintf("Invalid: open devices that do not exist...");
     fd = sysopen(-1);
     ASSERT_EQUAL(fd, SYSERR);
     fd = sysopen(40);
     ASSERT_EQUAL(fd, SYSERR);
+    kprintf("Success!\n");
     
-    // only one of the keyboards can be open at a time
+    kprintf("Invalid: open and close two different keyboard devices...");
     fd = sysopen(DEVICE_ID_KEYBOARD);
     fd2 = sysopen(DEVICE_ID_KEYBOARD_NO_ECHO);
     ASSERT_EQUAL(fd, 0);
@@ -100,8 +108,9 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(fd2, SYSERR);
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(sysclose(fd2), SYSERR);
+    kprintf("Success!\n");
     
-    // opening too many fds will error
+    kprintf("Invalid: open too many FDs...");
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 1);
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 2);
@@ -111,6 +120,7 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(sysclose(1), 0);
     ASSERT_EQUAL(sysclose(2), 0);
     ASSERT_EQUAL(sysclose(3), 0);
+    kprintf("Success!\n");
 }
 
 static void devtest_write(void) {
@@ -119,20 +129,23 @@ static void devtest_write(void) {
     
     sprintf(buf, "Hello");
     
-    // Valid case: open and write a FD
+    kprintf("Valid (though unsupported): write to valid FD...");
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
     ASSERT_EQUAL(syswrite(fd, buf, strlen(buf)), -1);
+    kprintf("Success!\n");
     
-    // Error case: write to a closed FD
+    kprintf("Invalid: write to closed FD...");
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(syswrite(fd, buf, strlen(buf)), SYSERR);
+    kprintf("Success!\n");
     
-    // Error case: write to arbitrary FDs
+    kprintf("Invalid: write to invalid FD...");
     ASSERT_EQUAL(syswrite(-1, buf, strlen(buf)), SYSERR);
     ASSERT_EQUAL(syswrite(2, buf, strlen(buf)), SYSERR);
     ASSERT_EQUAL(syswrite(PCB_NUM_FDS, buf, strlen(buf)), SYSERR);
     ASSERT_EQUAL(syswrite(PCB_NUM_FDS + 1, buf, strlen(buf)), SYSERR);
+    kprintf("Success!\n");
 }
 
 static void devtest_read(void) {
@@ -312,8 +325,6 @@ static void devtest_multi_kill_cleanup_proc(void) {
     
     // Valid case: open, sleep, then read. Buffer should flush
     fd = sysopen(DEVICE_ID_KEYBOARD);
-    
-    syssleep(3000);
     ASSERT_EQUAL(sysread(fd, &buf, 1), 1);
     sprintf(printbuf, "[%d] (%d): %c\n", pid, 1, buf);
     sysputs(printbuf);
@@ -347,22 +358,26 @@ static void devtest_read_err(void) {
     char buf[4];
     
     // Error case: read to a closed FD
+    kprintf("Invalid: Read from closed FD...");
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(fd, 0);
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(sysread(fd, buf, sizeof(buf)), SYSERR);
+    kprintf("Success!\n");
     
     // Error case: read to arbitrary FDs
+    kprintf("Invalid: Read from invalid FD...");
     ASSERT_EQUAL(sysread(-1, buf, sizeof(buf)), SYSERR);
     ASSERT_EQUAL(sysread(2, buf, sizeof(buf)), SYSERR);
     ASSERT_EQUAL(sysread(PCB_NUM_FDS, buf, sizeof(buf)), SYSERR);
     ASSERT_EQUAL(sysread(PCB_NUM_FDS + 1, buf, sizeof(buf)), SYSERR);
+    kprintf("Success!\n");
 }
 
 static void devtest_ioctl(void) {
     int fd;
     
-    // Valid case: open and ioctl a FD
+    kprintf("Valid: ioctl on a valid FD...");
     fd = sysopen(DEVICE_ID_KEYBOARD);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), 0);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_EOF), (int)'a');
@@ -370,16 +385,25 @@ static void devtest_ioctl(void) {
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), 1);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO), 0);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), 0);
+    kprintf("Success!\n");
     
-    // Invalid case: Random ioctl command codes
+    kprintf("Invalid: ioctl with invalid command code...");
     ASSERT_EQUAL(sysioctl(fd, 1), SYSERR);
     ASSERT_EQUAL(sysioctl(fd, -1), SYSERR);
     ASSERT_EQUAL(sysioctl(fd, 0), SYSERR);
+    kprintf("Success!\n");
     
-    // Invalid case: ioctl without the parameter... just make sure we don't crash
+    kprintf("Invalid: ioctl with missing command parameters...");
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF), 0);
+    kprintf("Success!\n");
     
-    // Invalid case: ioctl on closed FD
+    kprintf("Invalid: ioctl with NULL command parameters...");
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, NULL), 0);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, NULL, NULL), 0);
+    ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, NULL, NULL, NULL), 0);
+    kprintf("Success!\n");
+    
+    kprintf("Invalid: ioctl with closed FD...");
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_SET_EOF, 'a'), SYSERR);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_EOF), SYSERR);
@@ -387,4 +411,5 @@ static void devtest_ioctl(void) {
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), SYSERR);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO), SYSERR);
     ASSERT_EQUAL(sysioctl(fd, KEYBOARD_IOCTL_GET_ECHO), SYSERR);
+    kprintf("Success!\n");
 }
