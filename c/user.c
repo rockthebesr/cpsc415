@@ -257,7 +257,7 @@ static void command_a(void) {
     }
     
     syssighandler(15, (funcptr_args1)&command_a_handler, &oldHandler);
-    syssleep(sleeparg);
+    syssleep(TICK_LENGTH_IN_MS * sleeparg);
     syskill(sysgetpid(), 15);
 }
 
