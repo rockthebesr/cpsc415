@@ -215,9 +215,9 @@ static void command_ps(void) {
 
     int num = sysgetcputimes(&ps);
 
-    sysputs("PID | State | Time\n");
-    for (int i = 0; i < num; i++) {
-        sprintf(str, "%d  %s  %d\n", ps.pid[i],
+    sysputs("PID | State           | Time\n");
+    for (int i = 0; i <= num; i++) {
+        sprintf(str, "%4d  %16s  %8d\n", ps.pid[i],
                 detailed_states[ps.status[i]], ps.cpuTime[i]);
         sysputs(str);
     }
