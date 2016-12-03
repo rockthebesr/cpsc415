@@ -72,16 +72,19 @@ static void signaltest_syshandler(void) {
     funcptr_args1 oldHandler;
 
     // error codes
+    kprintf("Testing invalid signals\n");
     ASSERT_EQUAL(syssighandler(-1, &low_pri, &oldHandler),
                  SYSHANDLER_INVALID_SIGNAL);
     ASSERT_EQUAL(syssighandler(32, &low_pri, &oldHandler),
                  SYSHANDLER_INVALID_SIGNAL);
+    kprintf("Testing invalid functions\n");
     ASSERT_EQUAL(syssighandler(0, &low_pri, NULL),
                  SYSHANDLER_INVALID_FUNCPTR);
-    ASSERT_EQUAL(syssighandler(0, (funcptr_args1)NULL, &oldHandler),
+    ASSERT_EQUAL(syssighandler(0, (funcptr_args1)-1, &oldHandler),
                  SYSHANDLER_INVALID_FUNCPTR);
 
     // change signal handlers, get back old ones
+    kprintf("Setting up signal handlers\n");
     setup_signal_handler(&low_pri);
     ASSERT_EQUAL(syssighandler(0, &high_pri, &oldHandler), 0);
     ASSERT_EQUAL(oldHandler, low_pri);
@@ -89,6 +92,13 @@ static void signaltest_syshandler(void) {
     ASSERT_EQUAL(oldHandler, NULL);
     ASSERT_EQUAL(syssighandler(31, &low_pri, &oldHandler), 0);
     ASSERT_EQUAL(oldHandler, high_pri);
+    ASSERT_EQUAL(syssighandler(31, &low_pri, &oldHandler), 0);
+    kprintf("Old handler successfully returns the correct signal handler\n");
+
+    ASSERT_EQUAL(syssighandler(0, NULL, &oldHandler), 0);
+    kprintf("Low priority signal should not fire...\n");
+    syskill(sysgetpid(), 0);
+    kprintf("Done\n");
 }
 
 /**
@@ -101,6 +111,7 @@ static void signaltest_signal_priorities(void) {
     // setup signal handlers
     sysyield();
 
+    kprintf("Sending all 3 signals\n");
     int result = syskill(pid, 0);
     ASSERT_EQUAL(result, 0);
     result = syskill(pid, 15);
@@ -148,6 +159,8 @@ static void basic_test_func(void) {
 
 static void test_priorities(void) {
     g_signal_fired = 0;
+
+    kprintf("Seting up signal handlers\n");
     setup_signal_handler(&low_pri);
 
     funcptr_args1 oldHandler;
@@ -160,6 +173,7 @@ static void test_priorities(void) {
     // allow parent to call syskill
     sysyield();
 
+    kprintf("returned from signals\n");
     // trigger our signal handlers
     // expect to see g_signal_fired go 0 -> deadbeef -> beefbeef -> cafecafe
     sysyield();
@@ -195,16 +209,19 @@ static void basic_signal_handler(void* cntx) {
 
 static void low_pri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0xBEEFBEEF);
+    kprintf("Signal 0 fired\n");
     g_signal_fired = 0xCAFECAFE;
 }
 
 static void medium_pri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0xDEADBEEF);
+    kprintf("Signal 15 fired\n");
     g_signal_fired = 0xBEEFBEEF;
 }
 
 static void high_pri(void* cntx) {
     ASSERT_EQUAL(g_signal_fired, 0);
+    kprintf("Signal 31 fired\n");
     g_signal_fired = 0xDEADBEEF;
 }
 

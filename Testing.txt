@@ -13,17 +13,27 @@ Assignment 3
 Derek Chan: o6z8
 Alex Charles: w8j8 
 
+Most of the tests below rely heavily on assertions.
+Not only is our testing code filled with assertions, our kernel code is too.
+This allows us to verify our assumptions while designing and testing.
+As a result, our test output is not superfluous.
+
 ################################################################################
 # Test Case 1: Test showing prioritization of signals
 # Procedure:
-#    TODO
+#    proc 1 creates low, medium, and high priority signal handlers
+#    proc 2 calls all 3 signals, then sysyields() to allow proc 1 to run
+#    check that proc1's signals fire in the correct order
 #
 # Result: Success
 # signaltest.c: signaltest_signal_priorities
 ################################################################################
-
-
-
+Seting up signal handlers
+Sending all 3 signals
+Signal 31 fired
+Signal 15 fired
+Signal 0 fired
+returned from signals
 
 
 
@@ -31,12 +41,20 @@ Alex Charles: w8j8
 ################################################################################
 # Test Case 2: syssighandler() test case
 # Procedure:
-#    TODO
+#       First checks syshandler handler does not register invalid functions
+#       Then sets a signal handlers at a few priorities
+#       Checks oldHandler output parameter returns the previous handlers
+#       Finally, sets a former handler to ignore, and calls it
 #
 # Result: Success
 # signaltest.c: signaltest_syshandler
 ################################################################################
-
+Testing invalid signals
+Testing invalid functions
+Setting up signal handlers
+Old handler successfully returns the correct signal handler
+Low priority signal should not fire...
+Done
 
 
 
@@ -59,16 +77,22 @@ Alex Charles: w8j8
 ################################################################################
 # Test Case 4: Test syssigwait
 # Procedure:
-#    TODO
+#      Calls syswait on some invalid pids, confirms we get -1
+#      Then creates another process(testfunc), and waits for it to finish
 #
 # Result: Success
 # syscalltest.c: test_syswait
 ################################################################################
+syswait checking invalid pids
+creating process, waiting on it
+testfunc starting
+testfunc ending
+returned from wait
 
 
-2. 
-3. 
 
+
+################################################################################
 
 
 5. sysopen() with invalid arguments

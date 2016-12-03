@@ -357,7 +357,8 @@ static int dispatch_syscall_sighandler(void) {
     }
 
     // not a perfect check, but best we can do
-    if (verify_usrptr(new_handler, sizeof(funcptr_args1)) != OK ||
+    if ((new_handler != NULL &&
+        verify_usrptr(new_handler, sizeof(funcptr_args1)) != OK) ||
         verify_usrptr(old_handler, sizeof(funcptr_args1*)) != OK) {
         return SYSHANDLER_INVALID_FUNCPTR;
     }

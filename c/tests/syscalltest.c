@@ -58,6 +58,8 @@ void syscall_run_all_tests(void) {
  * Test process function for syscalltest1_create_max_number_of_processes
  */
 static void testfunc(void) {
+    kprintf("testfunc starting\n");
+    kprintf("testfunc ending\n");
     // Calling return on a syscreated fuction will automatically jump to sysstop()
     return;
     
@@ -250,9 +252,12 @@ static void test_sysputs(void) {
  * Tests syswait() basic functionality and error responses
  */
 static void test_syswait(void) {
+    kprintf("syswait checking invalid pids\n");
     ASSERT_EQUAL(syswait(-1), SYSPID_DNE);
     ASSERT_EQUAL(syswait(9000), SYSPID_DNE);
 
+    kprintf("creating process, waiting on it\n");
     int pid = syscreate(&testfunc, DEFAULT_STACK_SIZE);
     ASSERT_EQUAL(syswait(pid), 0);
+    kprintf("returned from wait\n");
 }
