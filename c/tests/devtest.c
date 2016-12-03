@@ -22,15 +22,16 @@ static void devtest_read_buffer_multi_proc(void);
 static void devtest_read_buffer_multi(void);
 static void devtest_multi_kill_cleanup_proc(void);
 static void devtest_read_multi_kill_cleanup(void);
+static void devtest_read_multi_staggered2(void);
+static void devtest_read_multi_staggered4(void);
+static void devtest_read_multi_staggered8(void);
+static void devtest_read_multi_staggered(void);
 static void devtest_ioctl(void);
 
 #define USER_KILL_SIGNAL 9
 
 void dev_run_all_tests(void) {
     initPIT(1000 / TICK_LENGTH_IN_MS);
-    
-    devtest_read_multi_kill_cleanup();
-    syssleep(5000);
     
     devtest_open_close();
     devtest_write();
@@ -41,6 +42,7 @@ void dev_run_all_tests(void) {
     devtest_read_multi_kill_cleanup();
     devtest_read_multi();
     devtest_read_buffer_multi();
+    devtest_read_multi_staggered();
     devtest_ioctl();
     
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
@@ -316,17 +318,18 @@ static void devtest_read_buffer_multi(void) {
 
 static void devtest_multi_kill_cleanup_proc(void) {
     funcptr_args1 oldHandler;
-    char buf;
+    char buf[4 + 1] = {'\0'};
     int fd;
     int pid = sysgetpid();
     char printbuf[80];
+    int bytes;
     
     syssighandler(USER_KILL_SIGNAL,(funcptr_args1)&sysstop, &oldHandler);
     
     // Valid case: open, sleep, then read. Buffer should flush
     fd = sysopen(DEVICE_ID_KEYBOARD);
-    ASSERT_EQUAL(sysread(fd, &buf, 1), 1);
-    sprintf(printbuf, "[%d] (%d): %c\n", pid, 1, buf);
+    bytes = sysread(fd, &buf, sizeof(buf) - 1);
+    sprintf(printbuf, "[%d] (%d): %s\n", pid, bytes, buf);
     sysputs(printbuf);
     
     ASSERT_EQUAL(sysclose(fd), 0);
@@ -340,13 +343,14 @@ static void devtest_read_multi_kill_cleanup(void) {
     for (i = 0; i < 5; i++) {
         pids[i] = syscreate(&devtest_multi_kill_cleanup_proc, DEFAULT_STACK_SIZE);
         numProcs += (pids[i] > 0 ? 1 : 0);
+        DEBUG("Created PID %d\n", pids[i]);
     }
     
     syssleep(1000);
     syskill(pids[2], USER_KILL_SIGNAL);
     syskill(pids[3], USER_KILL_SIGNAL);
-    syskill(pids[5], USER_KILL_SIGNAL);
-    DEBUG("Killed 3 processes. Please type now\n");
+    DEBUG("Killed 2 processes (%d, %d). Please type now\n",
+        pids[2], pids[3]);
     
     for (i = 0; i < 5; i++) {
         syswait(pids[i]);
@@ -372,6 +376,53 @@ static void devtest_read_err(void) {
     ASSERT_EQUAL(sysread(PCB_NUM_FDS, buf, sizeof(buf)), SYSERR);
     ASSERT_EQUAL(sysread(PCB_NUM_FDS + 1, buf, sizeof(buf)), SYSERR);
     kprintf("Success!\n");
+}
+
+static void devtest_read_multi_staggered2(void) {
+    char buf[2 + 1];
+    char printbuf[80];
+    int fd = sysopen(DEVICE_ID_KEYBOARD);
+    memset(buf, '\0', sizeof(buf));
+    memset(printbuf, '\0', sizeof(printbuf));
+    int bytes = sysread(fd, buf, sizeof(buf) - 1);
+    sprintf(printbuf, "pid %d (%d): %s\n", sysgetpid(), bytes, buf);
+    sysputs(printbuf);
+    sysclose(fd);
+}
+static void devtest_read_multi_staggered4(void) {
+    char buf[4 + 1];
+    char printbuf[80];
+    int fd = sysopen(DEVICE_ID_KEYBOARD);
+    memset(buf, '\0', sizeof(buf));
+    memset(printbuf, '\0', sizeof(printbuf));
+    int bytes = sysread(fd, buf, sizeof(buf) - 1);
+    sprintf(printbuf, "pid %d (%d): %s\n", sysgetpid(), bytes, buf);
+    sysputs(printbuf);
+    sysclose(fd);
+}
+static void devtest_read_multi_staggered8(void) {
+    char buf[8 + 1];
+    char printbuf[80] = {'\0'};
+    int fd = sysopen(DEVICE_ID_KEYBOARD);
+    memset(buf, '\0', sizeof(buf));
+    memset(printbuf, '\0', sizeof(printbuf));
+    int bytes = sysread(fd, buf, sizeof(buf) - 1);
+    sprintf(printbuf, "pid %d (%d): %s\n", sysgetpid(), bytes, buf);
+    sysputs(printbuf);
+    sysclose(fd);
+}
+static void devtest_read_multi_staggered(void) {
+    int fds[3];
+    int i;
+    
+    DEBUG("Start!\n");
+    fds[0] = syscreate(&devtest_read_multi_staggered2, DEFAULT_STACK_SIZE);
+    fds[1] = syscreate(&devtest_read_multi_staggered4, DEFAULT_STACK_SIZE);
+    fds[2] = syscreate(&devtest_read_multi_staggered8, DEFAULT_STACK_SIZE);
+    for (i = 0; i < 3; i++) {
+        syswait(fds[i]);
+    }
+    DEBUG("Done!\n");
 }
 
 static void devtest_ioctl(void) {

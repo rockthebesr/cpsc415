@@ -108,9 +108,6 @@ static void shell(void) {
         char arg[50];
         char printbuf[80];
         int ampersand = get_command(buf, command, arg);
-        kprintf("& sent: %d\n", ampersand);
-        kprintf("command: !%s!\n", command);
-        kprintf("arg: !%s!\n", arg);
 
         int wait = 1;
         int pid = 0;
