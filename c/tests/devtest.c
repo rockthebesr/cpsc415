@@ -18,6 +18,8 @@ static void devtest_read_err(void);
 static void devtest_read_buffer(void);
 static void devtest_read_multi_proc(void);
 static void devtest_read_multi(void);
+static void devtest_read_buffer_multi_proc(void);
+static void devtest_read_buffer_multi(void);
 static void devtest_ioctl(void);
 
 void dev_run_all_tests(void) {
@@ -30,6 +32,7 @@ void dev_run_all_tests(void) {
     devtest_read_ioctl();
     devtest_read_buffer();
     devtest_read_multi();
+    devtest_read_buffer_multi();
     devtest_ioctl();
     
     ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
@@ -92,6 +95,17 @@ static void devtest_open_close(void) {
     ASSERT_EQUAL(fd2, SYSERR);
     ASSERT_EQUAL(sysclose(fd), 0);
     ASSERT_EQUAL(sysclose(fd2), SYSERR);
+    
+    // opening too many fds will error
+    ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 0);
+    ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 1);
+    ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 2);
+    ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), 3);
+    ASSERT_EQUAL(sysopen(DEVICE_ID_KEYBOARD), -1);
+    ASSERT_EQUAL(sysclose(0), 0);
+    ASSERT_EQUAL(sysclose(1), 0);
+    ASSERT_EQUAL(sysclose(2), 0);
+    ASSERT_EQUAL(sysclose(3), 0);
 }
 
 static void devtest_write(void) {
@@ -244,6 +258,41 @@ static void devtest_read_buffer(void) {
     kprintf("Returned (%d): %s\n", bytes, buf);
     
     ASSERT_EQUAL(sysclose(fd), 0);
+}
+
+static void devtest_read_buffer_multi_proc(void) {
+    char buf;
+    int fd;
+    int pid = sysgetpid();
+    char printbuf[80];
+    
+    // Valid case: open, sleep, then read. Buffer should flush
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    
+    syssleep(3000);
+    ASSERT_EQUAL(sysread(fd, &buf, 1), 1);
+    sprintf(printbuf, "[%d] (%d): %c\n", pid, 1, buf);
+    sysputs(printbuf);
+    
+    ASSERT_EQUAL(sysclose(fd), 0);
+}
+
+static void devtest_read_buffer_multi(void) {
+    int pids[5];
+    int numProcs = 0;
+    int i;
+    
+    DEBUG("Creating 5 processes...\nAll sleeping for 3 seconds (type to the keyboard now)...\n");
+    for (i = 0; i < 5; i++) {
+        pids[i] = syscreate(&devtest_read_buffer_multi_proc, DEFAULT_STACK_SIZE);
+        numProcs += (pids[i] > 0 ? 1 : 0);
+    }
+    
+    for (i = 0; i < 5 - 1; i++) {
+        syswait(pids[i]);
+    }
+    
+    DEBUG("Done! Test succeeded with %d processes\n", numProcs);
 }
 
 static void devtest_read_err(void) {

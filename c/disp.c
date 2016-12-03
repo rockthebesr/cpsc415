@@ -445,7 +445,7 @@ static void dispatch_syscall_read(void) {
     
     if (currproc->ret == BLOCKERR) {
         currproc->curr_state = PROC_STATE_BLOCKED;
-        currproc->blocking_proc = NULL;
+        currproc->blocking_queue_name = DEVICE;
         currproc = get_next_proc();
     }
 }
