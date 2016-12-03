@@ -285,6 +285,11 @@ void cleanup_proc(proc_ctrl_block_t *proc) {
     if (proc->blocking_queue_name != NO_BLOCKER) {
         resolve_blocking(proc);
     }
+
+    // close any open devices
+    for (int i = 0; i < PCB_NUM_FDS; i++) {
+        di_close(proc, i);
+    }
     
     add_pcb_to_queue(proc, PROC_STATE_STOPPED);
 }
