@@ -11,7 +11,6 @@ static void shell(void);
 static int get_command(char *str, char *command, char* arg);
 static void setup_kill_handler(void);
 static void command_ps(void);
-static void command_eof(void);
 static void command_k(void);
 static void command_a(void);
 static void command_t(void);
@@ -86,7 +85,11 @@ static void shell(void) {
         memset(buf, '\0', sizeof(buf));
 
         sysputs("> ");
-        sysread(fd, buf, 80);
+        int bytes = sysread(fd, buf, 80);
+        if (bytes == 0) {
+            // EOF encountered
+            break;
+        }
 
         filter_newline(buf);
         char command[50];
@@ -115,7 +118,7 @@ static void shell(void) {
             pid = syscreate(&command_k, DEFAULT_STACK_SIZE);
 
         } else if(!strcmp("ex", command)) {           
-            pid = syscreate(&command_eof, DEFAULT_STACK_SIZE);
+            break;
 
         } else {
             sysputs("Command not found\n");
@@ -124,9 +127,9 @@ static void shell(void) {
         if (wait) {
             syswait(pid);
         }
-
     }
 
+    sysputs("Goodbye.\n");
     sysclose(fd);
 }
 
@@ -202,11 +205,6 @@ static void command_ps(void) {
         sprintf(str, "%d  %d  %d\n", ps.pid[i], ps.status[i], ps.cpuTime[i]);
         sysputs(str);
     }
-}
-
-static void command_eof(void) {
-    setup_kill_handler();
-    return;
 }
 
 /**
