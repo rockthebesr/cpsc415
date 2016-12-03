@@ -4,138 +4,19 @@
 #include <xeroskernel.h>
 #include <xeroslib.h>
 
-static int g_root_proc_pid;
+#define USER_KILL_SIGNAL 25
 
-/**
- * Root process
- */
-void root(void) {
-    kprintf("Hello world!\n");
-    syscreate(&producer, DEFAULT_STACK_SIZE);
-    syscreate(&consumer, DEFAULT_STACK_SIZE);
-    for (;;) sysyield();
-}
+static void filter_newline(char *str);
+static void shell(void);
+static int get_command(char *str, char *command, char* arg);
+static void setup_kill_handler(void);
+static void command_ps(void);
+static void command_eof(void);
+static void command_k(void);
+static void command_a(void);
+static void command_t(void);
 
-/**
- * Producer
- */
-void producer(void) {
-    int i;
-    for (i = 0; i < 12; i++) {
-        kprintf("Happy 101st\n");
-        sysyield();
-    }
-    sysstop();    
-}
-
-/**
- * Consumer
- */
-void consumer(void) {
-    int i;
-    for (i = 0; i < 15; i++) {
-        kprintf("Birthday UBC\n");
-        sysyield();
-    }
-    sysstop();  
-}
-
-/**
- * Child
- * As required by the asst2 spec:
- * * print a message indicating it is alive
- * * sleep for 5 seconds
- * * recv() from root process, this is the # of ms to sleep
- * * print a message saying the message was received, specify the sleep time
- * * print message saying sleeping has stopped and is going to exit
- * * runs off the end of its code
- */
-void child(void) {
-    char buf[80];
-    int result;
-    unsigned long sleep_time;
-    int root = g_root_proc_pid;
-    int pid = sysgetpid();
-    
-    sprintf(buf, "[%d]: Hello! I am alive!\n", pid);
-    sysputs(buf);
-    syssleep(5000);
-    
-    result = sysrecv(&root, &sleep_time);
-    if (result != SYSPID_OK) {
-        sprintf(buf, "[%d]: Error %d: Could not receive sleep_time from root\n",
-            pid, result);
-        sysputs(buf);
-        goto done;
-    }
-    sprintf(buf, "[%d]: Received sleep_time from root: %lu\n",
-        pid, sleep_time);
-    sysputs(buf);
-    syssleep(sleep_time);
-    
-done:
-    sprintf(buf, "[%d]: Terminating, goodbye\n", pid);
-    sysputs(buf);
-}
-
-/**
- * Parent (AKA root)
- * As required by the asst2 spec:
- * * prints a message saying it is alive
- * * create 4 children, printing their pids
- * * sleeps for 4 seconds
- * * tell proc3 to sleep for 10 seconds
- * * tell proc2 to sleep for 7 seconds
- * * tell proc1 to sleep for 20 seconds
- * * tell proc4 to sleep for 27 seconds
- * * try to recv from proc4, print resulting error code
- * * try to send to proc3, print resulting error code
- * * call sysstop() explicitly
- */
-void parent(void) {
-    char buf[80];
-    int result;
-    int children[4];
-    int i;
-    unsigned long msg;
-    
-    g_root_proc_pid = sysgetpid();
-    
-    sprintf(buf, "[root]: Hello! I am root! (pid: %d)\n", g_root_proc_pid);
-    sysputs(buf);
-    for (i = 0; i < 4; i++) {
-        children[i] = syscreate(&child, DEFAULT_STACK_SIZE);
-        if (children[i] <= 0) {
-            sprintf(buf, "[root]: Error creating child %d\n", i);
-            sysputs(buf);
-        }
-        sprintf(buf, "[root]: Created child with PID %d\n", children[i]);
-        sysputs(buf);
-    }
-    syssleep(4000);
-    
-    syssend(children[2], 10000);
-    syssend(children[1], 7000);
-    syssend(children[0], 20000);
-    syssend(children[3], 27000);
-    
-    result = sysrecv(&children[3], &msg);
-    sprintf(buf, "[root]: recv from %d resulted in return code: %d\n",
-        children[3], result);
-    sysputs(buf);
-    
-    result = syssend(children[2], (unsigned long)0xcafecafe);
-    sprintf(buf, "[root]: send to %d resulted in return code: %d\n",
-        children[2], result);
-    sysputs(buf);
-    
-    sysputs("Done.\n");
-    sysstop();
-}
-
-void shell(void) {
-    sysputs("shell\n");
-}
+static int g_pid_to_kill;
 
 /**
  * Authenticates the user, starts the shell process
@@ -145,8 +26,8 @@ void login_proc(void) {
     char* valid_pass = "EveryoneGetsAnA";
 
     while(1) {
-        char user_buf[8];
-        char pass_buf[16];
+        char user_buf[80];
+        char pass_buf[80];
         memset(user_buf, '\0', sizeof(user_buf));
         memset(pass_buf, '\0', sizeof(pass_buf));
 
@@ -155,15 +36,15 @@ void login_proc(void) {
 
         sysioctl(fd, KEYBOARD_IOCTL_ENABLE_ECHO);
         sysputs("Username: ");
-        sysread(fd, user_buf, 8);
+        sysread(fd, user_buf, 20);
 
-        //        sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO);
-        sysputs("\nPassword: \n");
-        sysread(fd, pass_buf, 19);
+        sysioctl(fd, KEYBOARD_IOCTL_DISABLE_ECHO);
+        sysputs("\nPassword: ");
+        sysread(fd, pass_buf, 20);
         sysclose(fd);
 
-        kprintf("!%s!\n", user_buf);
-        kprintf("!%s!\n", pass_buf);
+        filter_newline(user_buf);
+        filter_newline(pass_buf);
 
         if (strcmp(user_buf, valid_user) == 0 &&
             strcmp(pass_buf, valid_pass) == 0) {
@@ -171,4 +52,183 @@ void login_proc(void) {
             syswait(shell_pid);
         }
     }
+}
+
+/**
+ * Converts first newline in a string to a null terminator
+ * @param str - null terminated string
+ */
+static void filter_newline(char *str) {
+    while(*str != '\0') {
+        if (*str == '\n') {
+            *str = '\0';
+            break;
+        }
+        str++;
+    }
+}
+
+/**
+ * User's shell. Processes various commands
+ */
+static void shell(void) {
+    setup_kill_handler();
+    sysputs("\n");
+    int fd = sysopen(DEVICE_ID_KEYBOARD);
+
+    char buf[100];
+
+    while(1) {
+        memset(buf, '\0', sizeof(buf));
+
+        sysputs("> ");
+        sysread(fd, buf, 80);
+
+        filter_newline(buf);
+        char command[50];
+        char arg[50];
+        int ampersand = get_command(buf, command, arg);
+        kprintf("& sent: %d\n", ampersand);
+        kprintf("command: !%s!\n", command);
+        kprintf("arg: !%s!\n", arg);
+
+        int wait = 1;
+        int pid = 0;
+
+        if(!strcmp("t", command)) {
+            pid = syscreate(&command_t, DEFAULT_STACK_SIZE);
+            wait = ampersand;
+
+        } else if(!strcmp("ps", command)) {
+            pid = syscreate(&command_ps, DEFAULT_STACK_SIZE);
+
+        } else if(!strcmp("a", command)) {
+            pid = syscreate(&command_a, DEFAULT_STACK_SIZE);
+
+        } else if(!strcmp("k", command)) {
+            g_pid_to_kill = atoi(arg);
+            pid = syscreate(&command_k, DEFAULT_STACK_SIZE);
+
+        } else if(!strcmp("ex", command)) {           
+            pid = syscreate(&command_eof, DEFAULT_STACK_SIZE);
+
+        } else {
+            sysputs("Command not found\n");
+        }
+
+        if (wait) {
+            syswait(pid);
+        }
+
+    }
+
+    sysclose(fd);
+}
+
+/**
+ * Parses user input, determines command, if & was passed
+ * @param str - user input to parse
+ * @param command - buffer to place the command
+ * @param arg - buffer to place argument in
+ * @return 0 if & was not passed, 1 if it was
+ */
+static int get_command(char* str, char* command, char* arg) {
+    int ampersand = 0;
+    int len = 0;
+
+    while (*str != '\0' && *str != ' ' && *str != '&') {
+        *command = *str;
+        command++;
+        str++;
+        len++;
+    }
+
+    *command = '\0';
+
+    // get to first argument
+    while ((*str != '\0') && (*str == ' ' || *str == '&')) {
+        str++;
+        len++;
+    }
+
+    // read argument
+    while (*str != '\0' && *str != ' ' && *str != '&') {
+        *arg = *str;
+        arg++;
+        str++;
+        len++;
+    }
+
+    *arg = '\0';
+
+    // go to the end of the command line, then we'll read to see if we hit a &
+    while(*str != '\0') {
+        str++;
+        len++;
+    }
+
+    len--;
+    str--; 
+    while((len > 0) && (*str == ' ' || *str == '&')) {
+        if (*str == '&') {
+            ampersand = 1;
+        }
+        if (*str != ' ') {
+            break;
+        }
+        str--;
+        len--;
+    }
+
+    return ampersand;
+}
+
+static void command_ps(void) {
+    setup_kill_handler();
+    processStatuses ps;
+    char str[80];
+
+    //are the process id, the
+    //current state of the process, and the amount of time the process has run in milliseconds.
+    int num = sysgetcputimes(&ps);
+
+    sysputs("PID | State | Time\n");
+    for (int i = 0; i < num; i++) {
+        sprintf(str, "%d  %d  %d\n", ps.pid[i], ps.status[i], ps.cpuTime[i]);
+        sysputs(str);
+    }
+}
+
+static void command_eof(void) {
+    setup_kill_handler();
+    return;
+}
+
+/**
+ * Kills the process with pid g_pid_to_kill
+ */
+static void command_k(void) {
+    setup_kill_handler();
+    int ret = syskill(g_pid_to_kill, USER_KILL_SIGNAL);
+    if (ret) {
+        sysputs("No such process.\n");
+    }
+}
+
+static void command_a(void) {
+    setup_kill_handler();
+    return;
+}
+
+static void command_t(void) {
+    setup_kill_handler();
+    while(1) {
+        sysputs("t\n");
+        syssleep(10000);
+    }
+}
+
+static void setup_kill_handler(void) {
+    funcptr_args1 oldHandler; 
+    syssighandler(USER_KILL_SIGNAL,(funcptr_args1)&sysstop, &oldHandler);
 }

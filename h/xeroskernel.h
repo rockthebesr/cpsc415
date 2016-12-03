@@ -295,11 +295,6 @@ extern void sigtramp(funcptr_args1 handler, void *cntx);
 extern int signal(int pid, int sig_no);
 
 /* user programs */
-extern void root(void);
-extern void producer(void);
-extern void consumer(void);
-extern void child(void);
-extern void parent(void);
 extern void login_proc(void);
 
 #endif
