@@ -20,7 +20,11 @@ static void devtest_read_multi_proc(void);
 static void devtest_read_multi(void);
 static void devtest_read_buffer_multi_proc(void);
 static void devtest_read_buffer_multi(void);
+static void devtest_multi_kill_cleanup_proc(void);
+static void devtest_read_multi_kill_cleanup(void);
 static void devtest_ioctl(void);
+
+#define USER_KILL_SIGNAL 9
 
 void dev_run_all_tests(void) {
     initPIT(1000 / TICK_LENGTH_IN_MS);
@@ -31,6 +35,7 @@ void dev_run_all_tests(void) {
     devtest_read_err();
     devtest_read_ioctl();
     devtest_read_buffer();
+    devtest_read_multi_kill_cleanup();
     devtest_read_multi();
     devtest_read_buffer_multi();
     devtest_ioctl();
@@ -261,24 +266,25 @@ static void devtest_read_buffer(void) {
 }
 
 static void devtest_read_buffer_multi_proc(void) {
-    char buf;
+    char buf = '\0';
     int fd;
     int pid = sysgetpid();
+    int bytes;
     char printbuf[80];
     
     // Valid case: open, sleep, then read. Buffer should flush
     fd = sysopen(DEVICE_ID_KEYBOARD);
     
     syssleep(3000);
-    ASSERT_EQUAL(sysread(fd, &buf, 1), 1);
-    sprintf(printbuf, "[%d] (%d): %c\n", pid, 1, buf);
+    bytes = sysread(fd, &buf, 1);
+    sprintf(printbuf, "[%d] (%d): %c\n", pid, bytes, buf);
     sysputs(printbuf);
     
     ASSERT_EQUAL(sysclose(fd), 0);
 }
 
 static void devtest_read_buffer_multi(void) {
-    int pids[5];
+    int pids[PCB_TABLE_SIZE];
     int numProcs = 0;
     int i;
     
@@ -295,6 +301,47 @@ static void devtest_read_buffer_multi(void) {
     DEBUG("Done! Test succeeded with %d processes\n", numProcs);
 }
 
+static void devtest_multi_kill_cleanup_proc(void) {
+    funcptr_args1 oldHandler;
+    char buf;
+    int fd;
+    int pid = sysgetpid();
+    char printbuf[80];
+    
+    syssighandler(USER_KILL_SIGNAL,(funcptr_args1)&sysstop, &oldHandler);
+    
+    // Valid case: open, sleep, then read. Buffer should flush
+    fd = sysopen(DEVICE_ID_KEYBOARD);
+    
+    syssleep(3000);
+    ASSERT_EQUAL(sysread(fd, &buf, 1), 1);
+    sprintf(printbuf, "[%d] (%d): %c\n", pid, 1, buf);
+    sysputs(printbuf);
+    
+    ASSERT_EQUAL(sysclose(fd), 0);
+}
+static void devtest_read_multi_kill_cleanup(void) {
+    int pids[5];
+    int numProcs = 0;
+    int i;
+    
+    DEBUG("Creating 5 processes... Don't type into keyboard...\n");
+    for (i = 0; i < 5; i++) {
+        pids[i] = syscreate(&devtest_multi_kill_cleanup_proc, DEFAULT_STACK_SIZE);
+        numProcs += (pids[i] > 0 ? 1 : 0);
+    }
+    
+    syssleep(1000);
+    syskill(pids[2], USER_KILL_SIGNAL);
+    syskill(pids[3], USER_KILL_SIGNAL);
+    syskill(pids[5], USER_KILL_SIGNAL);
+    DEBUG("Killed 3 processes. Please type now\n");
+    
+    for (i = 0; i < 5; i++) {
+        syswait(pids[i]);
+    }
+    DEBUG("Done\n");
+}
 static void devtest_read_err(void) {
     int fd;
     char buf[4];

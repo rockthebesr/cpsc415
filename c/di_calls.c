@@ -58,7 +58,7 @@ int di_open(proc_ctrl_block_t *proc, int device_no) {
     }
     
     devsw_t *entry = &g_device_table[device_no];
-    int result = entry->dvopen(entry->dvioblk);
+    int result = entry->dvopen(proc, entry->dvioblk);
     if (result) {
         return SYSERR;
     }
@@ -82,7 +82,7 @@ int di_close(proc_ctrl_block_t *proc, int fd) {
     }
     
     entry = proc->fd_table[fd];
-    int result = entry->dvclose(entry->dvioblk);
+    int result = entry->dvclose(proc, entry->dvioblk);
     if (result) {
         return SYSERR;
     }
@@ -145,7 +145,7 @@ int di_ioctl(proc_ctrl_block_t *proc, int fd,
         return SYSERR;
     }
     
-    return proc->fd_table[fd]->dvioctl(proc->fd_table[fd]->dvioblk,
+    return proc->fd_table[fd]->dvioctl(proc, proc->fd_table[fd]->dvioblk,
                                        command_code, args);
 }
 

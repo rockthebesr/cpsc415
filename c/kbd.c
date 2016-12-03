@@ -95,7 +95,10 @@ int kbd_init(void) {
     return 0;
 }
 
-int kbd_open(void *dvioblk) {
+int kbd_open(proc_ctrl_block_t *proc, void *dvioblk) {
+    // unused
+    (void)proc;
+    
     int echo_flag = ((kbd_dvioblk_t*)dvioblk)->orig_echo_flag;
     
     if (g_kbd_refcount > 0) {
@@ -121,9 +124,12 @@ int kbd_open(void *dvioblk) {
     return 0;
 }
 
-int kbd_close(void *dvioblk) {
+int kbd_close(proc_ctrl_block_t *proc, void *dvioblk) {
     // unused
     (void)dvioblk;
+    int i;
+    int j;
+    int k;
     
     if (g_kbd_refcount <= 0) {
         return EBADF;
@@ -134,10 +140,29 @@ int kbd_close(void *dvioblk) {
         setEnabledKbd(0);
     }
     
+    // Reorganize our queue in case the proc was blocking us
+    // This is somewhat expensive, but thankfully should only occur rarely
+    for (i = g_kbd_task_queue_tail; i != g_kbd_task_queue_head; i = (i + 1) % KBD_TASK_QUEUE_SIZE) {
+        if (g_kbd_task_queue[i].pcb == proc) {
+            // shuffle the procs down
+            for (j = i; j != g_kbd_task_queue_head; j = (j + 1) % KBD_TASK_QUEUE_SIZE) {
+                k = (j + 1) % KBD_TASK_QUEUE_SIZE;
+                g_kbd_task_queue[j] = g_kbd_task_queue[k];
+            }
+            
+            // decrement our head in a way where we don't underflow
+            g_kbd_task_queue_head = (g_kbd_task_queue_head + KBD_TASK_QUEUE_SIZE - 1) % KBD_TASK_QUEUE_SIZE;
+        }            
+    }
+    
     return 0;
 }
 
 int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
+    // unused
+    (void)proc;
+    (void)dvioblk;
+    
     kbd_task_t *task = &g_kbd_task_queue[g_kbd_task_queue_head];
     g_kbd_task_queue_head++;
     
@@ -162,15 +187,20 @@ int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
 }
 
 int kbd_write(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
+    // unused
+    (void)proc;
     (void)dvioblk;
     (void)buf;
     (void)buflen;
-    (void)proc;
     // Cannot write to keyboard
     return -1;
 }
 
-int kbd_ioctl(void *dvioblk, unsigned long command, void *args) {
+int kbd_ioctl(proc_ctrl_block_t *proc, void *dvioblk, unsigned long command, void *args) {
+    // unused
+    (void)proc;
+    (void)dvioblk;
+    
     switch(command) {
         case KEYBOARD_IOCTL_SET_EOF:
             return kbd_ioctl_set_eof(args);
