@@ -17,6 +17,7 @@ static void command_a(void);
 static void command_t(void);
 
 static int g_pid_to_kill;
+static char *g_arg;
 
 /**
  * Authenticates the user, starts the shell process
@@ -48,6 +49,9 @@ void login_proc(void) {
 
         if (strcmp(user_buf, valid_user) == 0 &&
             strcmp(pass_buf, valid_pass) == 0) {
+            int shell_pid = syscreate(&shell, DEFAULT_STACK_SIZE);
+            syswait(shell_pid);
+        } else {
             int shell_pid = syscreate(&shell, DEFAULT_STACK_SIZE);
             syswait(shell_pid);
         }
@@ -103,6 +107,7 @@ static void shell(void) {
             pid = syscreate(&command_ps, DEFAULT_STACK_SIZE);
 
         } else if(!strcmp("a", command)) {
+            g_arg = arg;
             pid = syscreate(&command_a, DEFAULT_STACK_SIZE);
 
         } else if(!strcmp("k", command)) {
@@ -215,9 +220,27 @@ static void command_k(void) {
     }
 }
 
+static void command_a_handler(void) {
+    funcptr_args1 oldHandler;
+    
+    sysputs("ALARM ALARM ALARM\n");
+    syssighandler(15, NULL, &oldHandler);
+}
+
 static void command_a(void) {
     setup_kill_handler();
-    return;
+    
+    funcptr_args1 oldHandler;
+    int sleeparg = atoi(g_arg);
+    
+    if (sleeparg <= 0) {
+        sysputs("Usage: a SLEEP_MILLIS\n");
+        return;
+    }
+    
+    syssighandler(15, (funcptr_args1)&command_a_handler, &oldHandler);
+    syssleep(sleeparg);
+    syskill(sysgetpid(), 15);
 }
 
 static void command_t(void) {
@@ -229,6 +252,6 @@ static void command_t(void) {
 }
 
 static void setup_kill_handler(void) {
-    funcptr_args1 oldHandler; 
+    funcptr_args1 oldHandler;
     syssighandler(USER_KILL_SIGNAL,(funcptr_args1)&sysstop, &oldHandler);
 }
