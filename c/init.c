@@ -65,7 +65,7 @@ void initproc( void )				/* The beginning */
   //dispatch(&copyinout_run_all_tests);
   //dispatch(&msg_run_all_tests);
   //dispatch(&timer_run_all_tests);
-  dispatch(&signal_run_all_tests);
+  //dispatch(&signal_run_all_tests);
   //dispatch(&dev_run_all_tests);
 #else
   // enable pre-emption

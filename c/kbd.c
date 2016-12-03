@@ -17,12 +17,12 @@ typedef struct kbd_task {
     void *buf;
     int buflen;
     int i;
+    int waiting_on_read;
 } kbd_task_t;
-// Circular buffer implementation, 1 index is "wasted" to indicate full buffer
-#define KBD_TASK_QUEUE_SIZE (PCB_TABLE_SIZE + 1)
-static kbd_task_t g_kbd_task_queue[KBD_TASK_QUEUE_SIZE];
-static int g_kbd_task_queue_head = 0;
-static int g_kbd_task_queue_tail = 0;
+// PID_based task list, using refcount to indicate when nobody is waiting
+#define KBD_TASK_LIST_SIZE (PCB_TABLE_SIZE)
+static kbd_task_t g_kbd_task_list[KBD_TASK_LIST_SIZE];
+static int g_kbd_task_refcount = 0;
 
 typedef struct kbd_dvioblk {
     int orig_echo_flag;
@@ -36,7 +36,7 @@ static int g_kbd_done = 0;
 
 static void keyboard_flush_buffer(void);
 static char keyboard_process_scancode(int data);
-static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval);
+static void keyboard_unblock_proc(kbd_task_t *task);
 static void keyboard_process_char(char c);
 static void keyboard_handle_eof(void);
 
@@ -82,12 +82,17 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
  ******************************************************************************/
 
 int kbd_init(void) {
+    int i;
+    
     g_kbd_refcount = 0;
     g_kbd_done = 0;
     g_keyboard_buffer_head = 0;
     g_keyboard_buffer_tail = 0;
-    g_kbd_task_queue_head = 0;
-    g_kbd_task_queue_tail = 0;
+    g_kbd_task_refcount = 0;
+    
+    for (i = 0; i < KBD_TASK_LIST_SIZE; i++) {
+        g_kbd_task_list[i].waiting_on_read = 0;
+    }
     
     // Read data from the ports, in case some interrupts triggered in the past
     inb(KEYBOARD_PORT_DATA);
@@ -96,9 +101,6 @@ int kbd_init(void) {
 }
 
 int kbd_open(proc_ctrl_block_t *proc, void *dvioblk) {
-    // unused
-    (void)proc;
-    
     int echo_flag = ((kbd_dvioblk_t*)dvioblk)->orig_echo_flag;
     
     if (g_kbd_refcount > 0) {
@@ -115,11 +117,11 @@ int kbd_open(proc_ctrl_block_t *proc, void *dvioblk) {
     g_kbd_done = 0;
     g_keyboard_buffer_head = 0;
     g_keyboard_buffer_tail = 0;
-    g_kbd_task_queue_head = 0;
-    g_kbd_task_queue_tail = 0;
     g_keyboard_keystate_flag = 0;
     g_keyboard_eof = KBD_DEFAULT_EOF;
     g_keyboard_echo_flag = echo_flag;
+    
+    ASSERT(g_kbd_task_list[proc->pid % KBD_TASK_LIST_SIZE].waiting_on_read == 0);
     setEnabledKbd(1);
     return 0;
 }
@@ -127,9 +129,6 @@ int kbd_open(proc_ctrl_block_t *proc, void *dvioblk) {
 int kbd_close(proc_ctrl_block_t *proc, void *dvioblk) {
     // unused
     (void)dvioblk;
-    int i;
-    int j;
-    int k;
     
     if (g_kbd_refcount <= 0) {
         return EBADF;
@@ -140,21 +139,11 @@ int kbd_close(proc_ctrl_block_t *proc, void *dvioblk) {
         setEnabledKbd(0);
     }
     
-    // Reorganize our queue in case the proc was blocking us
-    // This is somewhat expensive, but thankfully should only occur rarely
-    for (i = g_kbd_task_queue_tail; i != g_kbd_task_queue_head; i = (i + 1) % KBD_TASK_QUEUE_SIZE) {
-        if (g_kbd_task_queue[i].pcb == proc) {
-            // shuffle the procs down
-            for (j = i; j != g_kbd_task_queue_head; j = (j + 1) % KBD_TASK_QUEUE_SIZE) {
-                k = (j + 1) % KBD_TASK_QUEUE_SIZE;
-                g_kbd_task_queue[j] = g_kbd_task_queue[k];
-            }
-            
-            // decrement our head in a way where we don't underflow
-            g_kbd_task_queue_head = (g_kbd_task_queue_head + KBD_TASK_QUEUE_SIZE - 1) % KBD_TASK_QUEUE_SIZE;
-        }            
+    if (g_kbd_task_list[proc->pid % KBD_TASK_LIST_SIZE].waiting_on_read) {
+        g_kbd_task_refcount--;
     }
     
+    g_kbd_task_list[proc->pid % KBD_TASK_LIST_SIZE].waiting_on_read = 0;
     return 0;
 }
 
@@ -163,13 +152,14 @@ int kbd_read(proc_ctrl_block_t *proc, void *dvioblk, void* buf, int buflen) {
     (void)proc;
     (void)dvioblk;
     
-    kbd_task_t *task = &g_kbd_task_queue[g_kbd_task_queue_head];
-    g_kbd_task_queue_head++;
+    kbd_task_t *task = &g_kbd_task_list[proc->pid % KBD_TASK_LIST_SIZE];
+    g_kbd_task_refcount++;
     
     task->pcb = proc;
     task->buf = buf;
     task->i = 0;
     task->buflen = buflen;
+    task->waiting_on_read = 1;
     
     keyboard_flush_buffer();
     if (task->i == buflen) {
@@ -276,11 +266,11 @@ void keyboard_isr(void) {
         c = keyboard_process_scancode(data);
         
         if (c != 0) {
-            if (g_keyboard_echo_flag) {
+            if (g_keyboard_echo_flag && c != g_keyboard_eof) {
                 kprintf("%c", c);
             }
             
-            if (g_kbd_task_queue_tail != g_kbd_task_queue_head) {
+            if (g_kbd_task_refcount > 0) {
                 // If there is a task waiting, write to task
                 keyboard_process_char(c);
             } else if (((g_keyboard_buffer_head + 1) % KEYBOARD_BUFFER_SIZE) != g_keyboard_buffer_tail) {
@@ -300,7 +290,7 @@ static void keyboard_flush_buffer(void) {
     char c;
     
     // While the buffer still has some contents in it
-    while (g_kbd_task_queue_tail != g_kbd_task_queue_head &&
+    while (g_kbd_task_refcount > 0 &&
         g_keyboard_buffer_tail != g_keyboard_buffer_head) {
             
         c = g_keyboard_buffer[g_keyboard_buffer_tail];
@@ -315,6 +305,7 @@ static void keyboard_flush_buffer(void) {
  * @param c - ascii character
  */
 static void keyboard_process_char(char c) {
+    int i;
     kbd_task_t *task;
     
     if (c == g_keyboard_eof) {
@@ -322,15 +313,17 @@ static void keyboard_process_char(char c) {
         return;
     }
     
-    ASSERT(g_kbd_task_queue_tail != g_kbd_task_queue_head);
-    task = &g_kbd_task_queue[g_kbd_task_queue_tail];
-    ((char*)(task->buf))[task->i] = c;
-    task->i++;
-    
-    // Unblock once we've filled the buffer, OR  we encounter \n
-    if (task->i == task->buflen || c == '\n') {
-        g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
-        keyboard_unblock_proc(task->pcb, task->i);
+    for (i = 0; i < KBD_TASK_LIST_SIZE; i++) {
+        if (g_kbd_task_list[i].waiting_on_read) {
+            task = &g_kbd_task_list[i];
+            ((char*)(task->buf))[task->i] = c;
+            task->i++;
+            
+            // Unblock once we've filled the buffer, OR  we encounter \n
+            if (task->i == task->buflen || c == '\n') {
+                keyboard_unblock_proc(task);
+            }
+        }
     }
 }
 
@@ -339,16 +332,18 @@ static void keyboard_process_char(char c) {
  * Logic for handling EOF character, namely waking all blocked processes.
  */
 static void keyboard_handle_eof(void) {
+    int i;
     kbd_task_t *task;
     
     setEnabledKbd(0);
     g_kbd_done = 1;
     
     // Flush all queues
-    while (g_kbd_task_queue_tail != g_kbd_task_queue_head) {
-        task = &g_kbd_task_queue[g_kbd_task_queue_tail];
-        g_kbd_task_queue_tail = (g_kbd_task_queue_tail + 1) % KBD_TASK_QUEUE_SIZE;
-        keyboard_unblock_proc(task->pcb, task->i);
+    for (i = 0; i < KBD_TASK_LIST_SIZE; i++) {
+        if (g_kbd_task_list[i].waiting_on_read) {
+            task = &g_kbd_task_list[i];
+            keyboard_unblock_proc(task);
+        }
     }
     
     return;
@@ -360,12 +355,15 @@ static void keyboard_handle_eof(void) {
  * @param pcb - proc to unblock
  * @param retval - return value to set in the pcb
  */
-static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval) {
-    pcb->ret = retval;
+static void keyboard_unblock_proc(kbd_task_t *task) {
+    ASSERT(task != NULL);
+    g_kbd_task_refcount--;
+    task->waiting_on_read = 0;
+    task->pcb->ret = task->i;
     // Edge case: Make sure we only unblock BLOCKED processes
-    if (pcb->curr_state == PROC_STATE_BLOCKED) {
-        add_pcb_to_queue(pcb, PROC_STATE_READY);
-        pcb->blocking_queue_name = NO_BLOCKER;
+    if (task->pcb->curr_state == PROC_STATE_BLOCKED) {
+        add_pcb_to_queue(task->pcb, PROC_STATE_READY);
+        task->pcb->blocking_queue_name = NO_BLOCKER;
     }
 }
 

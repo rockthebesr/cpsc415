@@ -29,9 +29,6 @@ static void devtest_ioctl(void);
 void dev_run_all_tests(void) {
     initPIT(1000 / TICK_LENGTH_IN_MS);
     
-    devtest_read_multi_kill_cleanup();
-    syssleep(5000);
-    
     devtest_open_close();
     devtest_write();
     devtest_read();
