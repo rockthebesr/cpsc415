@@ -1,24 +1,25 @@
 /* kbd.c: Keyboard device specific code
 */
 
+#include <stdarg.h>
 #include <xeroslib.h>
 #include <kbd.h>
-#include <stdarg.h>
-#include <i386.h>
 #include <pcb.h>
+#include <i386.h>
 
 #define KBD_DEFAULT_EOF ((char)0x04)
 
 #define KEYBOARD_PORT_CONTROL_READY_MASK 0x01
 #define KEYBOARD_PORT_DATA_SCANCODE_MASK 0x0FF
 
-#define KBD_TASK_QUEUE_SIZE 32
 typedef struct kbd_task {
     proc_ctrl_block_t *pcb;
     void *buf;
     int buflen;
     int i;
 } kbd_task_t;
+// Circular buffer implementation, 1 index is "wasted" to indicate full buffer
+#define KBD_TASK_QUEUE_SIZE (PCB_TABLE_SIZE + 1)
 static kbd_task_t g_kbd_task_queue[KBD_TASK_QUEUE_SIZE];
 static int g_kbd_task_queue_head = 0;
 static int g_kbd_task_queue_tail = 0;
@@ -28,9 +29,9 @@ typedef struct kbd_dvioblk {
 } kbd_dvioblk_t;
 
 static int kbd_ioctl_set_eof(void *args);
-// Only 1 keyboard is allowed to be open at a time
+// Only 1 keyboard type is allowed to be open at a time
 static int g_kbd_refcount = 0;
-static int g_kbd_current_mode = 0;
+static int g_kbd_current_type = 0;
 static int g_kbd_done = 0;
 
 static void keyboard_flush_buffer(void);
@@ -38,11 +39,12 @@ static char keyboard_process_scancode(int data);
 static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval);
 static void keyboard_process_char(char c);
 static void keyboard_handle_eof(void);
+
 #define KEYBOARD_STATE_SHIFT_BIT 0
 #define KEYBOARD_STATE_CTRL_BIT 1
 #define KEYBOARD_STATE_CAPLOCK_BIT 2
-
 static int g_keyboard_keystate_flag = 0;
+
 // Circular buffer implementation, 1 index is "wasted" to indicate full buffer
 #define KEYBOARD_BUFFER_SIZE (4 + 1)
 static char g_keyboard_buffer[KEYBOARD_BUFFER_SIZE] = {0};
@@ -54,6 +56,7 @@ static char g_keyboard_echo_flag; // 1 for on, 0 for off
 /**
  * Fills in a device table entry with keyboard-device specific values
  * @param entry - device table entry to be modified
+ * @param echo_flag - 1 if keyboard will echo the keystrokes 0 for silent
  */
 void kbd_devsw_create(devsw_t *entry, int echo_flag) {
     ASSERT(entry != NULL);
@@ -74,9 +77,9 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
     ((kbd_dvioblk_t*)entry->dvioblk)->orig_echo_flag = echo_flag;
 }
 
-/**
+/******************************************************************************
  * Implementations of devsw abstract functions
- */
+ ******************************************************************************/
 
 int kbd_init(void) {
     g_kbd_refcount = 0;
@@ -96,7 +99,7 @@ int kbd_open(void *dvioblk) {
     int echo_flag = ((kbd_dvioblk_t*)dvioblk)->orig_echo_flag;
     
     if (g_kbd_refcount > 0) {
-        if (g_kbd_current_mode != echo_flag) {
+        if (g_kbd_current_type != echo_flag) {
             return EBUSY;
         }
         
@@ -105,7 +108,7 @@ int kbd_open(void *dvioblk) {
     }
     
     g_kbd_refcount = 1;
-    g_kbd_current_mode = echo_flag;
+    g_kbd_current_type = echo_flag;
     g_kbd_done = 0;
     g_keyboard_buffer_head = 0;
     g_keyboard_buffer_tail = 0;
@@ -191,18 +194,19 @@ int kbd_ioctl(void *dvioblk, unsigned long command, void *args) {
     }
 }
 
-// input available interrupt
 int kbd_iint(void) {
     return -1;
 }
 
-// output available interrupt
 int kbd_oint(void) {
     return -1;
 }
 
 /**
- * ioctl commands
+ * kbd_ioctl_set_eof
+ * Helper function for setting the EOF character recognized
+ * @param args - va_list passed from userspace
+ * @return 0 on success, error code otherwise
  */
 static int kbd_ioctl_set_eof(void *args) {
     va_list v;
@@ -218,10 +222,17 @@ static int kbd_ioctl_set_eof(void *args) {
     return 0;
 }
 
-/**
+/******************************************************************************
  * Keyboard lower-half functions
- * For naming, kbd_* is upper half
- *             keyboard_* is lower half
+ ******************************************************************************/
+ 
+/**
+ * keyboard_isr
+ * Function called when a keyboard interrupt occurs.
+ * Reads the data from the keyboard's registers via ports and handles the data
+ *
+ * The data will either be directly written to a waiting proc's buffer
+ * or be buffered internally in g_keyboard_buffer to wait for future reads.
  */
 void keyboard_isr(void) {
     int isDataPresent;
@@ -251,14 +262,10 @@ void keyboard_isr(void) {
     }
 }
 
-static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval) {
-    pcb->ret = retval;
-    // Edge case: Make sure we only unblock BLOCKED processes
-    if (pcb->curr_state == PROC_STATE_BLOCKED) {
-        add_pcb_to_queue(pcb, PROC_STATE_READY);
-    }
-}
-
+/**
+ * keyboard_flush_buffer
+ * Flush the entire keyboard buffer into the buffers held by blocked processes
+ */
 static void keyboard_flush_buffer(void) {
     char c;
     
@@ -272,6 +279,11 @@ static void keyboard_flush_buffer(void) {
     }
 }
 
+/**
+ * keyboard_process_char
+ * Logic for handling a ascii character, namely handling EOFs and newlines
+ * @param c - ascii character
+ */
 static void keyboard_process_char(char c) {
     kbd_task_t *task;
     
@@ -292,6 +304,10 @@ static void keyboard_process_char(char c) {
     }
 }
 
+/**
+ * keyboard_handle_eof
+ * Logic for handling EOF character, namely waking all blocked processes.
+ */
 static void keyboard_handle_eof(void) {
     kbd_task_t *task;
     
@@ -306,6 +322,20 @@ static void keyboard_handle_eof(void) {
     }
     
     return;
+}
+
+/**
+ * keyboard_unblock_proc
+ * Helper method to unblock a process
+ * @param pcb - proc to unblock
+ * @param retval - return value to set in the pcb
+ */
+static void keyboard_unblock_proc(proc_ctrl_block_t *pcb, int retval) {
+    pcb->ret = retval;
+    // Edge case: Make sure we only unblock BLOCKED processes
+    if (pcb->curr_state == PROC_STATE_BLOCKED) {
+        add_pcb_to_queue(pcb, PROC_STATE_READY);
+    }
 }
 
 /**
