@@ -175,6 +175,14 @@ static void devtest_read_buffer(void) {
     
     // Valid case: open, sleep, then read. Buffer should flush
     fd = sysopen(DEVICE_ID_KEYBOARD);
+    
+    kprintf("Sleeping for 3 seconds (type to the keyboard now)...\n");
+    syssleep(3000);
+    kprintf("\nDone!\n");
+    memset(buf, '\0', sizeof(buf));
+    bytes = sysread(fd, buf, 2);
+    kprintf("Returned (%d): %s\n", bytes, buf);
+    
     kprintf("Sleeping for 3 seconds (type to the keyboard now)...\n");
     syssleep(3000);
     kprintf("\nDone!\n");
