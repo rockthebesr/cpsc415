@@ -116,6 +116,7 @@ typedef struct devsw {
     int (*dvoint)(void);
     // device specific data (usually pointer to another struct)
     void *dvioblk;
+    int dvminor;
 } devsw_t;
 
 void di_init_devtable(void);

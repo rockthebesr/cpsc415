@@ -29,7 +29,8 @@ typedef struct kbd_dvioblk {
 
 static int kbd_ioctl_set_eof(void *args);
 // Only 1 keyboard is allowed to be open at a time
-static int g_kbd_in_use = 0;
+static int g_kbd_refcount = 0;
+static int g_kbd_current_mode = 0;
 static int g_kbd_done = 0;
 
 static void keyboard_flush_buffer(void);
@@ -66,6 +67,7 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
     entry->dvioctl = &kbd_ioctl;
     entry->dviint = &kbd_iint;
     entry->dvoint = &kbd_oint;
+    entry->dvminor = echo_flag;
     // Note: this kmalloc will intentionally never be kfree'd
     entry->dvioblk = (kbd_dvioblk_t*)kmalloc(sizeof(kbd_dvioblk_t));
     ASSERT(entry->dvioblk != NULL);
@@ -77,7 +79,7 @@ void kbd_devsw_create(devsw_t *entry, int echo_flag) {
  */
 
 int kbd_init(void) {
-    g_kbd_in_use = 0;
+    g_kbd_refcount = 0;
     g_kbd_done = 0;
     g_keyboard_buffer_head = 0;
     g_keyboard_buffer_tail = 0;
@@ -91,11 +93,19 @@ int kbd_init(void) {
 }
 
 int kbd_open(void *dvioblk) {
-    if (g_kbd_in_use) {
-        return EBUSY;
+    int echo_flag = ((kbd_dvioblk_t*)dvioblk)->orig_echo_flag;
+    
+    if (g_kbd_refcount > 0) {
+        if (g_kbd_current_mode != echo_flag) {
+            return EBUSY;
+        }
+        
+        g_kbd_refcount++;
+        return 0;
     }
     
-    g_kbd_in_use = 1;
+    g_kbd_refcount = 1;
+    g_kbd_current_mode = echo_flag;
     g_kbd_done = 0;
     g_keyboard_buffer_head = 0;
     g_keyboard_buffer_tail = 0;
@@ -103,7 +113,7 @@ int kbd_open(void *dvioblk) {
     g_kbd_task_queue_tail = 0;
     g_keyboard_keystate_flag = 0;
     g_keyboard_eof = KBD_DEFAULT_EOF;
-    g_keyboard_echo_flag = ((kbd_dvioblk_t*)dvioblk)->orig_echo_flag;
+    g_keyboard_echo_flag = echo_flag;
     setEnabledKbd(1);
     return 0;
 }
@@ -112,12 +122,15 @@ int kbd_close(void *dvioblk) {
     // unused
     (void)dvioblk;
     
-    if (!g_kbd_in_use) {
+    if (g_kbd_refcount <= 0) {
         return EBADF;
     }
     
-    g_kbd_in_use = 0;
-    setEnabledKbd(0);
+    g_kbd_refcount--;
+    if (g_kbd_refcount == 0) {
+        setEnabledKbd(0);
+    }
+    
     return 0;
 }
 
