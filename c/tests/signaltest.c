@@ -44,6 +44,7 @@ void signal_run_all_tests(void) {
  * Tests that we can send a signal and return from it, no actions done
  */
 static void signaltest_syskill(void) {
+    kprintf("creating proc, it sets up its handlers\n");
     int pid = syscreate(&basic_test_func, DEFAULT_STACK_SIZE);
     ASSERT(pid > 0);
 
@@ -51,15 +52,18 @@ static void signaltest_syskill(void) {
     sysyield();
 
     // syskill error cases
+    kprintf("testing syskill error cases\n");
     ASSERT_EQUAL(syskill(-1, 0), SYSKILL_TARGET_DNE);
     ASSERT_EQUAL(syskill(9999, 0), SYSKILL_TARGET_DNE);
     ASSERT_EQUAL(syskill(pid, -1), SYSKILL_INVALID_SIGNAL);
     ASSERT_EQUAL(syskill(pid, 32), SYSKILL_INVALID_SIGNAL);
 
     // test signal works
+    kprintf("testing ignore signal returns success\n");
     int result = syskill(pid, 11);
     ASSERT_EQUAL(result, 0);
 
+    kprintf("testing signal with handler\n");
     result = syskill(pid, 0);
     ASSERT_EQUAL(result, 0);
     sysyield();
@@ -148,9 +152,11 @@ static void basic_test_func(void) {
     setup_signal_handler(&basic_signal_handler);
 
     sysyield();
+    kprintf("signal received\n");
     ASSERT_EQUAL(g_signal_fired, 1);
 
     // check we can run syscalls after signal handling
+    kprintf("calling some syscalls...\n");
     ASSERT(sysgetpid() > 1);
     sysstop();
     ASSERT(0);

@@ -62,14 +62,22 @@ Done
 ################################################################################
 # Test Case 3: Test syskill
 # Procedure:
-#    TODO
+#    proc1 creates a proc2
+#    proc2 sets up its signal handlers
+#    proc1 tests syskills's error handling, by passing invalid signals or pids
+#    proc1 sends a signal to proc2, which proc2 should ignore
+#    proc1 sends a signal for proc 2 to handle
+#    finish by letting proc2 call a few syscalls, ensuring our stack is ok
 #
 # Result: Success
 # signaltest.c: signaltest_syskill
 ################################################################################
-
-
-
+creating proc, it sets up its handlers
+testing syskill error cases
+testing ignore signal returns success
+testing signal with handler
+signal received
+calling some syscalls...
 
 
 
