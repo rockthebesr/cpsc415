@@ -60,15 +60,12 @@ void login_proc(void) {
         filter_newline(user_buf);
         filter_newline(pass_buf);
 
-        int shell_pid = syscreate(&shell, DEFAULT_STACK_SIZE);
-        syswait(shell_pid);
-        /*
         if (strcmp(user_buf, valid_user) == 0 &&
             strcmp(pass_buf, valid_pass) == 0) {
-
+            int shell_pid = syscreate(&shell, DEFAULT_STACK_SIZE);
             syswait(shell_pid);
         }
-        */
+
     }
 }
 
@@ -120,7 +117,7 @@ static void shell(void) {
 
         if(!strcmp("t", command)) {
             pid = syscreate(&command_t, DEFAULT_STACK_SIZE);
-            wait = ampersand;
+            wait = !ampersand;
 
         } else if(!strcmp("ps", command)) {
             pid = syscreate(&command_ps, DEFAULT_STACK_SIZE);
@@ -137,6 +134,7 @@ static void shell(void) {
             break;
 
         } else if(!strcmp("sudo", command)) {
+            wait = !ampersand;
             g_arg = arg;
             pid = syscreate(&command_sudo, DEFAULT_STACK_SIZE);
         
